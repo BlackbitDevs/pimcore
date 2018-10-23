@@ -1,0 +1,13 @@
+# Atomic write operations for generated classes
+
+Pimcore generates PHP files for classes, field collection, object bricks etc. Therefore it generates the code and writes it via file_put_contents() to the file system. The problem is that write operations via file_put_contents are not atomic. When one process changed the definition and thus regenerates the PHP class file and another request accesses this PHP class, it can happen that the file does not exist for a short time or is incomplete (access then results in a syntax error most of the times). This is why these files should be written atomically.
+
+For more information about the problem with file_set_contents (and other PHP write operations) see https://github.com/nette/safe-stream
+
+## Enable atomic write operations
+
+1. Require nette/safe-stream: `composer require nette/safe-stream`
+1. Add prefix `nette.safe://` to folder constants in `app/constants.php`, e.g. 
+```php
+define("PIMCORE_CLASS_DIRECTORY", "nette.safe:///var/classes");
+```
