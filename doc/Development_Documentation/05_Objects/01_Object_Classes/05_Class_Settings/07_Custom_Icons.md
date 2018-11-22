@@ -37,7 +37,7 @@ public function getElementAdminStyle() {
    if (!$this->o_elementAdminStyle) {
       $this->o_elementAdminStyle = new AppBundle\Admin\AdminStyle($this);
    }
-return $this->o_elementAdminStyle;
+   return $this->o_elementAdminStyle;
 }
 ```
 
