@@ -14,10 +14,12 @@
 
 namespace Pimcore\Video\Adapter;
 
+use Pimcore\Event\AssetEvents;
 use Pimcore\File;
 use Pimcore\Logger;
 use Pimcore\Tool\Console;
 use Pimcore\Video\Adapter;
+use Symfony\Component\EventDispatcher\GenericEvent;
 use Symfony\Component\Process\Process;
 
 class Ffmpeg extends Adapter
@@ -79,6 +81,22 @@ class Ffmpeg extends Adapter
     }
 
     /**
+     * @return string
+     */
+    public function getLocalFilePath()
+    {
+        $file = $this->file;
+
+        $event = new GenericEvent($this, [
+            'path' => $file,
+        ]);
+        \Pimcore::getEventDispatcher()->dispatch(AssetEvents::VIDEO_CONVERSION_LOCAL_PATH, $event);
+        $file = $event->getArgument('path');
+
+        return realpath($file);
+    }
+
+    /**
      * @return mixed|void
      *
      * @throws \Exception
@@ -117,7 +135,7 @@ class Ffmpeg extends Adapter
             // add some global arguments
             $arguments = '-threads 0 ' . $arguments;
 
-            $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg(realpath($this->file)) . ' ' . $arguments . ' ' . escapeshellarg(str_replace('/', DIRECTORY_SEPARATOR, $this->getDestinationFile()));
+            $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg($this->getLocalFilePath()) . ' ' . $arguments . ' ' . escapeshellarg(str_replace('/', DIRECTORY_SEPARATOR, $this->getDestinationFile()));
 
             Logger::debug('Executing FFMPEG Command: ' . $cmd);
 
@@ -163,7 +181,7 @@ class Ffmpeg extends Adapter
             $file = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/ffmpeg-tmp-' . uniqid() . '.' . File::getFileExtension($file);
         }
 
-        $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg(realpath($this->file)) . ' -vcodec png -vframes 1 -vf scale=iw*sar:ih -ss ' . $timeOffset . ' ' . escapeshellarg(str_replace('/', DIRECTORY_SEPARATOR, $file));
+        $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg($this->getLocalFilePath()) . ' -vcodec png -vframes 1 -vf scale=iw*sar:ih -ss ' . $timeOffset . ' ' . escapeshellarg(str_replace('/', DIRECTORY_SEPARATOR, $file));
         Console::exec($cmd, null, 60);
 
         if ($realTargetPath) {
@@ -180,7 +198,7 @@ class Ffmpeg extends Adapter
     {
         $tmpFile = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/video-info-' . uniqid() . '.out';
 
-        $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg(realpath($this->file));
+        $cmd = self::getFfmpegCli() . ' -i ' . escapeshellarg($this->getLocalFilePath());
         Console::exec($cmd, $tmpFile, 60);
 
         $contents = file_get_contents($tmpFile);

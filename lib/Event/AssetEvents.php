@@ -133,6 +133,18 @@ final class AssetEvents
     const VIDEO_IMAGE_THUMBNAIL = 'pimcore.asset.video.image-thumbnail';
 
     /**
+     * Fires when the local file system path to a video is requested by a video adapter.
+     *
+     * Arguments:
+     *  - path | string | Absolute path to the asset file
+     *
+     * @Event("Pimcore\Event\Model\GenericEvent")
+     *
+     * @var string
+     */
+    const VIDEO_CONVERSION_LOCAL_PATH = 'pimcore.asset.video.conversion.local-path';
+
+    /**
      * Fires after the image thumbnail was created
      *
      * Arguments:
