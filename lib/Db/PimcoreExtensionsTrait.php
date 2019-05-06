@@ -351,18 +351,11 @@ trait PimcoreExtensionsTrait
             $i++;
         }
 
-        // build the statement
-        $set = [];
-        foreach ($cols as $i => $col) {
-            $set[] = sprintf('%s = %s', $col, $vals[$i]);
-        }
-
         $sql = sprintf(
-            'INSERT INTO %s (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s;',
+            'REPLACE INTO %s (%s) VALUES (%s);',
             $this->quoteIdentifier($table),
             implode(', ', $cols),
-            implode(', ', $vals),
-            implode(', ', $set)
+            implode(', ', $vals)
         );
 
         $bind = array_merge($bind, $bind);
