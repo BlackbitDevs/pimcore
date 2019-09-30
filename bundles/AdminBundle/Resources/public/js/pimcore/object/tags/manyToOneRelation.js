@@ -59,6 +59,30 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
         };
     },
 
+    getGridColumnFilter: function(field) {
+        var filterStore = new Ext.data.JsonStore({
+            autoDestroy: true,
+            autoLoad: true,
+            proxy: {
+                type: 'ajax',
+                url: '/admin/user/get-users-for-sharing',
+                reader: {
+                    rootProperty: 'data',
+                    idProperty: 'id'
+                }
+            },
+            fields: ['id', 'label']
+        });
+
+        return {
+            type: 'list',
+            dataIndex: field.key,
+            store: filterStore,
+            idField: 'id',
+            labelField: 'label',
+            loadingText: t('loading')+'...'
+        };
+    },
 
     getLayoutEdit: function () {
 
