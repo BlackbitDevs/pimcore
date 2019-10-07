@@ -60,27 +60,81 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
     },
 
     getGridColumnFilter: function(field) {
-        var filterStore = new Ext.data.JsonStore({
-            autoDestroy: true,
-            autoLoad: true,
-            proxy: {
-                type: 'ajax',
-                url: '/admin/user/get-users-for-sharing',
-                reader: {
-                    rootProperty: 'data',
-                    idProperty: 'id'
-                }
-            },
-            fields: ['id', 'label']
-        });
-
         return {
-            type: 'list',
+            type: 'string',
             dataIndex: field.key,
-            store: filterStore,
-            idField: 'id',
-            labelField: 'label',
-            loadingText: t('loading')+'...'
+            createMenu: function() {
+                var me = this,
+                    config;
+                me.callParent();
+                config = Ext.apply({}, me.getItemDefaults());
+                if (config.iconCls && !('labelClsExtra' in config)) {
+                    config.labelClsExtra = Ext.baseCSSPrefix + 'grid-filters-icon ' + config.iconCls;
+                }
+                delete config.iconCls;
+                config.emptyText = config.emptyText || me.emptyText;
+                me.inputItem = me.menu.add(config);
+                me.inputItem.on({
+                    scope: me,
+                    keyup: me.onSearchChange,
+                    el: {
+                        click: function(e) {
+                            e.stopPropagation();
+                        }
+                    }
+                });
+            },
+            onSearchChange: function(field, e) {
+                var value = me.getValue(field);
+
+                Ext.Ajax.request({
+                    url: "/admin/object/relation-options",
+                    method: 'get',
+                    params: {search: value},
+                    success: function (response) {
+                        response = Ext.decode(response.responseText);
+
+                        var me = this,
+                            menu = me.menu,
+                            len = response.length,
+                            contains = Ext.Array.contains,
+                            listeners, itemDefaults, record, gid, idValue, idField, labelValue, labelField, i, item, processed;
+                        // B/c we're listening to datachanged event, we need to make sure there's a menu.
+                        if (len && menu) {
+                            listeners = {
+                                checkchange: function(field, checked) {
+                                    var value = searchField.getValue();
+                                    me.filter.setValue(value);
+                                },
+                                scope: me
+                            };
+                            menu.suspendLayouts();
+                            menu.removeAll(true);
+                            gid = me.single ? Ext.id() : null;
+                            processed = [];
+                            for (i = 0; i < len; i++) {
+                                record = response[i];
+                                idValue = record.id;
+                                labelValue = record.label;
+                                // Only allow unique values.
+                                if (labelValue == null || contains(processed, idValue)) {
+                                    continue;
+                                }
+                                processed.push(labelValue);
+                                // Note that the menu items will be set checked in filter#activate() if the value of the menu
+                                // item is in the cfg.value array.
+                                item = menu.add(Ext.apply({
+                                    text: labelValue,
+                                    group: gid,
+                                    value: idValue,
+                                    listeners: listeners
+                                }));
+                            }
+                            menu.resumeLayouts(true);
+                        }
+                    }.bind(this)
+                });
+            },
         };
     },
 
