@@ -139,6 +139,42 @@ pimcore.object.classes.data.datetime = Class.create(pimcore.object.classes.data.
 
         specificItems = specificItems.concat(
             [
+                {
+                    xtype: 'textfield',
+                    fieldLabel: t("date_format"),
+                    name: 'dateFormat',
+                    value: datax.dateFormat,
+                    listeners: {
+                        change: function(element, value) {
+                            var existingComponent = defaultComponent.down('datefield');
+                            var config = existingComponent.getConfig();
+                            config.format = value;
+                            if(existingComponent.value) {
+                                config.value = Ext.Date.format(existingComponent.value, value);
+                            }
+                            defaultComponent.remove(existingComponent);
+                            defaultComponent.insert(0, new Ext.form.DateField(config));
+                        }
+                    }
+                },
+                {
+                    xtype: 'textfield',
+                    fieldLabel: t("date_format"),
+                    name: 'dateFormat',
+                    value: datax.dateFormat,
+                    listeners: {
+                        change: function(element, value) {
+                            var existingComponent = defaultComponent.down('timefield');
+                            var config = existingComponent.getConfig();
+                            config.format = value;
+                            if(existingComponent.value) {
+                                config.value = Ext.Date.format(existingComponent.value, value);
+                            }
+                            defaultComponent.remove(existingComponent);console.log(config);
+                            defaultComponent.insert(1, new Ext.form.TimeField(config));
+                        }
+                    }
+                },
                 defaultComponent,
                 defaultValue,
                 {
