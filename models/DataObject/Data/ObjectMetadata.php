@@ -67,6 +67,7 @@ class ObjectMetadata extends Model\AbstractModel implements DataObject\OwnerAwar
      * @param DataObject\Concrete $object
      *
      * @return $this|void
+     * @throws \InvalidArgumentException
      */
     public function setObject($object)
     {
@@ -76,6 +77,10 @@ class ObjectMetadata extends Model\AbstractModel implements DataObject\OwnerAwar
             $this->setObjectId(null);
 
             return;
+        }
+
+        if(!isset($object->{$this->fieldname})) {
+            throw new \InvalidArgumentException('Object "'.$object->getFullPath().'" cannot be the target object if this ObjectMetadata as it does not have the field "'.$this->fieldname.'"');
         }
 
         $this->objectId = $object->getId();
