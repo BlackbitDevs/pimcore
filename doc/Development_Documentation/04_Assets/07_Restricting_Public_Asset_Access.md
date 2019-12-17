@@ -110,7 +110,7 @@ In the application, there has to be a route in (app/config/routing.yml) and a co
 // important this has to be the first route in the file!
 asset_protect:
     path: /protected/{path}
-    defaults: { _controller: MyAssetController:protectedAsset }
+    defaults: { _controller: MyAsset:protectedAsset }
     requirements:
         path: '.*'
 
