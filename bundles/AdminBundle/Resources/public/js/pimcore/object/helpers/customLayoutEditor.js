@@ -76,7 +76,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
                 {
                     xtype: 'button',
                     text: t('cancel'),
-                    iconCls: 'pimcore_icon_delete',
+                    iconCls: 'pimcore_icon_cancel',
                     handler: function () {
                         this.window.close();
                     }.bind(this)
@@ -764,7 +764,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
         var id = this.layoutChangeCombo.getValue();
 
         this.saveCurrentNode();
-        var regresult = this.data["name"].match(/[a-zA-Z ][a-zA-Z0-9 ]+/);
+        var regresult = this.data["name"].match(/[a-zA-Z _][a-zA-Z0-9 _]+/);
 
         if (this.data["name"].length > 2 && this.data["name"].length < 64 && regresult == this.data["name"]) {
             delete this.data.layoutDefinitions;

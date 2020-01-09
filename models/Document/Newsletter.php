@@ -39,6 +39,13 @@ class Newsletter extends Model\Document\PageSnippet
     protected $subject = '';
 
     /**
+     * Contains the plain text part of the email
+     *
+     * @var string
+     */
+    protected $plaintext = '';
+
+    /**
      * Contains the from email address
      *
      * @var string
@@ -111,6 +118,30 @@ class Newsletter extends Model\Document\PageSnippet
     }
 
     /**
+     * Contains the email plain text part
+     *
+     * @param string $plaintext
+     *
+     * @return $this
+     */
+    public function setPlaintext($plaintext)
+    {
+        $this->plaintext = $plaintext;
+
+        return $this;
+    }
+
+    /**
+     * Returns the email plain text part
+     *
+     * @return string
+     */
+    public function getPlaintext()
+    {
+        return $this->plaintext;
+    }
+
+    /**
      * Returns the "from" email address
      *
      * @return string
@@ -118,20 +149,6 @@ class Newsletter extends Model\Document\PageSnippet
     public function getFrom()
     {
         return $this->from;
-    }
-
-    /**
-     * Returns the "from" email address as array
-     *
-     * @deprecated use \Pimcore\Helper\Mail::parseEmailAddressField instead
-     *
-     * @return array
-     */
-    public function getFromAsArray()
-    {
-        $emailAddresses = preg_split('/,|;/', $this->getFrom());
-
-        return $emailAddresses;
     }
 
     /**

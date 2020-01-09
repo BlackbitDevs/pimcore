@@ -17,6 +17,9 @@
 
 namespace Pimcore\Model\Element;
 
+use DeepCopy\Filter\SetNullFilter;
+use DeepCopy\Matcher\PropertyNameMatcher;
+use Doctrine\Common\Collections\Collection;
 use Pimcore\Db;
 use Pimcore\Db\ZendCompatibility\QueryBuilder;
 use Pimcore\Event\SystemEvents;
@@ -38,26 +41,27 @@ class Service extends Model\AbstractModel
     /**
      * @static
      *
-     * @param  $element
+     * @param ElementInterface $element
      *
      * @return string
      */
     public static function getIdPath($element)
     {
         $path = '';
+        $parentElement = null;
 
         if ($element instanceof ElementInterface) {
             $elementType = self::getElementType($element);
-            $nid = $element->getParentId();
-            $ne = self::getElementById($elementType, $nid);
+            $parentId = $element->getParentId();
+            $parentElement = self::getElementById($elementType, $parentId);
         }
 
-        if ($ne) {
-            $path = self::getIdPath($ne);
+        if ($parentElement) {
+            $path = self::getIdPath($parentElement);
         }
 
         if ($element) {
-            $path = $path . '/' . $element->getId();
+            $path .= '/' . $element->getId();
         }
 
         return $path;
@@ -66,7 +70,7 @@ class Service extends Model\AbstractModel
     /**
      * @static
      *
-     * @param $element
+     * @param ElementInterface $element
      *
      * @return string
      *
@@ -75,20 +79,21 @@ class Service extends Model\AbstractModel
     public static function getTypePath($element)
     {
         $path = '';
+        $parentElement = null;
 
         if ($element instanceof ElementInterface) {
             $elementType = self::getElementType($element);
-            $nid = $element->getParentId();
-            $ne = self::getElementById($elementType, $nid);
+            $parentId = $element->getParentId();
+            $parentElement = self::getElementById($elementType, $parentId);
         }
 
-        if ($ne) {
-            $path = self::getTypePath($ne);
+        if ($parentElement) {
+            $path = self::getTypePath($parentElement);
         }
 
         if ($element) {
             $type = $element->getType();
-            if ($type != 'folder') {
+            if ($type !== 'folder') {
                 if ($element instanceof Document) {
                     $type = 'document';
                 } elseif ($element instanceof DataObject\AbstractObject) {
@@ -99,7 +104,7 @@ class Service extends Model\AbstractModel
                     throw new \Exception('unknown type');
                 }
             }
-            $path = $path . '/' . $type;
+            $path .= '/' . $type;
         }
 
         return $path;
@@ -330,10 +335,12 @@ class Service extends Model\AbstractModel
      * @param  string $type
      * @param  string $path
      *
-     * @return ElementInterface
+     * @return ElementInterface|null
      */
     public static function getElementByPath($type, $path)
     {
+        $element = null;
+
         if ($type == 'asset') {
             $element = Asset::getByPath($path);
         } elseif ($type == 'object') {
@@ -423,18 +430,19 @@ class Service extends Model\AbstractModel
      *
      * @param  string $type
      * @param  int $id
+     * @param  bool $force
      *
      * @return ElementInterface
      */
-    public static function getElementById($type, $id)
+    public static function getElementById($type, $id, $force = false)
     {
         $element = null;
-        if ($type == 'asset') {
-            $element = Asset::getById($id);
-        } elseif ($type == 'object') {
-            $element = DataObject::getById($id);
-        } elseif ($type == 'document') {
-            $element = Document::getById($id);
+        if ($type === 'asset') {
+            $element = Asset::getById($id, $force);
+        } elseif ($type === 'object') {
+            $element = DataObject::getById($id, $force);
+        } elseif ($type === 'document') {
+            $element = Document::getById($id, $force);
         }
 
         return $element;
@@ -449,16 +457,29 @@ class Service extends Model\AbstractModel
      */
     public static function getElementType($element)
     {
-        $type = null;
         if ($element instanceof DataObject\AbstractObject) {
-            $type = 'object';
-        } elseif ($element instanceof Document) {
-            $type = 'document';
-        } elseif ($element instanceof Asset) {
-            $type = 'asset';
+            return 'object';
         }
 
-        return $type;
+        if ($element instanceof Document) {
+            return 'document';
+        }
+
+        if ($element instanceof Asset) {
+            return 'asset';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param ElementInterface $element
+     *
+     * @return string
+     */
+    public static function getElementHash(ElementInterface $element): string
+    {
+        return self::getElementType($element) . '-' . $element->getId();
     }
 
     /**
@@ -473,73 +494,6 @@ class Service extends Model\AbstractModel
     public static function getType($element)
     {
         return self::getElementType($element);
-    }
-
-    /**
-     * Schedules element with this id for sanity check to be cleaned of broken relations
-     *
-     * @static
-     *
-     * @param  ElementInterface $element
-     */
-    public static function scheduleForSanityCheck($element)
-    {
-        $type = self::getElementType($element);
-        $sanityCheck = new Sanitycheck($element->getId(), $type);
-        $sanityCheck->save();
-    }
-
-    public static function runSanityCheck()
-    {
-        $sanityCheck = Sanitycheck::getNext();
-        $count = 0;
-        while ($sanityCheck) {
-            $count++;
-            if ($count % 10 == 0) {
-                \Pimcore::collectGarbage();
-            }
-
-            $element = self::getElementById($sanityCheck->getType(), $sanityCheck->getId());
-            if ($element) {
-                try {
-                    self::performSanityCheck($element);
-                } catch (\Exception $e) {
-                    Logger::error('Element\\Service: sanity check for element with id [ ' . $element->getId() . ' ] and type [ ' . self::getType($element) . ' ] failed');
-                }
-                $sanityCheck->delete();
-            } else {
-                $sanityCheck->delete();
-            }
-            $sanityCheck = Sanitycheck::getNext();
-
-            // reduce load on server
-            Logger::debug('Now timeout for 3 seconds');
-            sleep(3);
-        }
-    }
-
-    /**
-     * @static
-     *
-     * @param ElementInterface $element
-     *
-     * @todo: I think ElementInterface is the wrong type here, it has no getter latestVersion
-     */
-    protected static function performSanityCheck($element)
-    {
-        if ($latestVersion = $element->getLatestVersion()) {
-            if ($latestVersion->getDate() > $element->getModificationDate()) {
-                return;
-            }
-        }
-
-        $element->setUserModification(0);
-        $element->save();
-
-        if ($version = $element->getLatestVersion(true)) {
-            $version->setNote('Sanitycheck');
-            $version->save();
-        }
     }
 
     /**
@@ -601,26 +555,28 @@ class Service extends Model\AbstractModel
     }
 
     /**
-     * @param ElementInterface $target the parent element
+     * @param DataObject\AbstractObject|Document|Asset\Folder $target the parent element
      * @param ElementInterface $new the newly inserted child
-     *
-     * @todo: I think ElementInterface is the wrong type here, it has no method getChilds
      */
-    protected function updateChilds($target, $new)
+    protected function updateChildren($target, $new)
     {
-        if (is_array($target->getChilds())) {
+        if (is_array($target->getChildren())) {
             //check in case of recursion
             $found = false;
-            foreach ($target->getChilds() as $child) {
+            foreach ($target->getChildren() as $child) {
+                /**
+                 * @var ElementInterface $child
+                 */
                 if ($child->getId() == $new->getId()) {
                     $found = true;
+                    break;
                 }
             }
             if (!$found) {
-                $target->setChilds(array_merge($target->getChilds(), [$new]));
+                $target->setChildren(array_merge($target->getChildren(), [$new]));
             }
         } else {
-            $target->setChilds([$new]);
+            $target->setChildren([$new]);
         }
     }
 
@@ -923,13 +879,13 @@ class Service extends Model\AbstractModel
     public static function addTreeFilterJoins($cv, $childsList)
     {
         if ($cv) {
-            $childsList->onCreateQuery(function (QueryBuilder $select) use ($cv, $childsList) {
-                $where = $cv['where'];
+            $childsList->onCreateQuery(static function (QueryBuilder $select) use ($cv) {
+                $where = $cv['where'] ?? null;
                 if ($where) {
                     $select->where($where);
                 }
 
-                $customViewJoins = $cv['joins'];
+                $customViewJoins = $cv['joins'] ?? null;
                 if ($customViewJoins) {
                     foreach ($customViewJoins as $joinConfig) {
                         $type = $joinConfig['type'];
@@ -941,7 +897,7 @@ class Service extends Model\AbstractModel
                     }
                 }
 
-                if ($cv['having']) {
+                if (!empty($cv['having'])) {
                     $select->having($cv['having']);
                 }
             });
@@ -979,28 +935,27 @@ class Service extends Model\AbstractModel
         ]);
         \Pimcore::getEventDispatcher()->dispatch(SystemEvents::SERVICE_PRE_GET_VALID_KEY, $event);
         $key = $event->getArgument('key');
+        $key = trim($key);
 
         // replace all 4 byte unicode characters
         $key = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '-', $key);
         // replace slashes with a hyphen
         $key = str_replace('/', '-', $key);
 
-        if ($type == 'document') {
-            // no spaces & utf8 for documents / clean URLs
-            $key = \Pimcore\Tool\Transliteration::toASCII($key);
-            $key = preg_replace('/[^a-zA-Z0-9\-\.~_]+/', '-', $key);
-        }
-
-        if ($type == 'asset') {
+        if ($type === 'object') {
+            $key = preg_replace('/[<>]/', '-', $key);
+        } elseif ($type === 'document') {
+            // replace URL reserved characters with a hyphen
+            $key = preg_replace('/[#\?\*\:\\\\<\>\|"%&@=;]/', '-', $key);
+        } elseif ($type === 'asset') {
             // keys shouldn't start with a "." (=hidden file) *nix operating systems
             // keys shouldn't end with a "." - Windows issue: filesystem API trims automatically . at the end of a folder name (no warning ... et al)
             $key = trim($key, '. ');
 
-            // windows forbidden filenames + URL reserved characters (at least the once which are problematic)
+            // windows forbidden filenames + URL reserved characters (at least the ones which are problematic)
             $key = preg_replace('/[#\?\*\:\\\\<\>\|"%]/', '-', $key);
         } else {
-            $key = trim($key);
-            $key = ltrim($key, '.');
+            $key = ltrim($key, '. ');
         }
 
         $key = mb_substr($key, 0, 255);
@@ -1048,9 +1003,13 @@ class Service extends Model\AbstractModel
     {
         if ($element instanceof DataObject\AbstractObject) {
             return DataObject\Service::getUniqueKey($element);
-        } elseif ($element instanceof Document) {
+        }
+
+        if ($element instanceof Document) {
             return Document\Service::getUniqueKey($element);
-        } elseif ($element instanceof Asset) {
+        }
+
+        if ($element instanceof Asset) {
             return Asset\Service::getUniqueKey($element);
         }
     }
@@ -1096,18 +1055,17 @@ class Service extends Model\AbstractModel
     }
 
     /**
-     * @param $versions
+     * @param Model\Version[] $versions
      *
      * @return array
      */
     public static function getSafeVersionInfo($versions)
     {
         $indexMap = [];
+        $result = [];
 
         if (is_array($versions)) {
             $versions = json_decode(json_encode($versions), true);
-            $result = [];
-            /** @var $version Model\Version */
             foreach ($versions as $version) {
                 $name = $version['user']['name'];
                 $id = $version['user']['id'];
@@ -1123,9 +1081,9 @@ class Service extends Model\AbstractModel
 
                 $result[] = $version;
             }
-
-            return $result;
         }
+
+        return $result;
     }
 
     /**
@@ -1167,18 +1125,16 @@ class Service extends Model\AbstractModel
                 $reflectionProperty->setAccessible(true);
                 $myValue = $reflectionProperty->getValue($object);
 
-                if ($myValue instanceof ElementInterface) {
-                    return true;
-                }
-
-                return false;
+                return $myValue instanceof ElementInterface;
             }
         });
 
-        $deepCopy->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyNameMatcher('dao'));
-        $deepCopy->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyNameMatcher('resource'));
-        $deepCopy->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyNameMatcher('writeResource'));
-        $deepCopy->addFilter(new \DeepCopy\Filter\Doctrine\DoctrineCollectionFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Doctrine\Common\Collections\Collection'));
+        $deepCopy->addFilter(new SetNullFilter(), new PropertyNameMatcher('dao'));
+        $deepCopy->addFilter(new SetNullFilter(), new PropertyNameMatcher('resource'));
+        $deepCopy->addFilter(new SetNullFilter(), new PropertyNameMatcher('writeResource'));
+        $deepCopy->addFilter(new \DeepCopy\Filter\Doctrine\DoctrineCollectionFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher(
+            Collection::class
+        ));
 
         if ($element instanceof DataObject\Concrete) {
             DataObject\Service::loadAllObjectFields($element);

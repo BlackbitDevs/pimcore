@@ -468,7 +468,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
         }
 
         if (!$this->isEmpty($data) && !is_numeric($data)) {
-            throw new Model\Element\ValidationException('invalid numeric data [' . $data . ']');
+            throw new Model\Element\ValidationException('field ['.$this->getName().' ] - invalid numeric data [' . $data . '] ');
         }
 
         if (!$this->isEmpty($data) && !$omitMandatoryCheck) {
@@ -524,7 +524,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      */
     public function getFromCsvImport($importValue, $object = null, $params = [])
     {
-        $value = $this->toNumeric(str_replace(',', '.', $importValue));
+        $value = $this->toNumeric($importValue);
 
         return $value;
     }
@@ -557,14 +557,37 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      */
     protected function toNumeric($value)
     {
+        $value = str_replace(',', '.', (string) $value);
+
         if ($this->isDecimalType()) {
-            return (string) $value;
+            return $value;
         }
 
-        if (strpos((string) $value, '.') === false) {
+        if (strpos($value, '.') === false) {
             return (int) $value;
         }
 
         return (float) $value;
+    }
+
+    /**
+     * @param $object
+     * @param $data
+     * @param array $params
+     *
+     * @return array|null
+     */
+    public function preSetData($object, $data, $params = [])
+    {
+        if (!is_null($data) && $this->getDecimalPrecision()) {
+            $data = round($data, $this->getDecimalPrecision());
+        }
+
+        return $data;
+    }
+
+    public function isFilterable(): bool
+    {
+        return true;
     }
 }

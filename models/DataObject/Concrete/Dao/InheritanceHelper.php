@@ -17,6 +17,7 @@
 
 namespace Pimcore\Model\DataObject\Concrete\Dao;
 
+use Pimcore\Db;
 use Pimcore\Db\ConnectionInterface;
 use Pimcore\Model\DataObject;
 
@@ -31,6 +32,8 @@ class InheritanceHelper
     const OBJECTS_TABLE = 'objects';
 
     const ID_FIELD = 'oo_id';
+
+    const DEFAULT_QUERY_ID_COLUMN = 'ooo_id';
 
     /**
      * @var ConnectionInterface
@@ -63,7 +66,7 @@ class InheritanceHelper
     protected $fieldDefinitions = [];
 
     /**
-     * @var
+     * @var string
      */
     protected $classId;
 
@@ -73,9 +76,9 @@ class InheritanceHelper
     protected static $useRuntimeCache = false;
 
     /**
-     * @var array
+     * @var bool
      */
-    protected $treeIds = [];
+    protected $childFound;
 
     /**
      * @var array
@@ -83,44 +86,77 @@ class InheritanceHelper
     protected static $runtimeCache = [];
 
     /**
-     * @param $classId
-     * @param null $idField
-     * @param null $storetable
-     * @param null $querytable
-     * @param null $relationtable
+     * @var string|null
      */
-    public function __construct($classId, $idField = null, $storetable = null, $querytable = null, $relationtable = null)
+    protected $storetable;
+
+    /**
+     * @var string|null
+     */
+    protected $querytable;
+
+    /**
+     * @var null|string
+     */
+    protected $relationtable;
+
+    /**
+     * @var null|string
+     */
+    protected $idField;
+
+    /**
+     * @var null|string
+     */
+    protected $queryIdField;
+
+
+    /**
+     * @param string $classId
+     * @param string|null $idField
+     * @param string|null $storetable
+     * @param string|null $querytable
+     * @param string|null $relationtable
+     * @param string|null $queryIdField
+     */
+    public function __construct($classId, $idField = null, $storetable = null, $querytable = null, $relationtable = null, $queryIdField = null)
     {
         $this->db = \Pimcore\Db::get();
         $this->classId = $classId;
 
-        if ($storetable == null) {
+        if ($storetable === null) {
             $this->storetable = self::STORE_TABLE . $classId;
         } else {
             $this->storetable = $storetable;
         }
 
-        if ($querytable == null) {
+        if ($querytable === null) {
             $this->querytable = self::QUERY_TABLE . $classId;
         } else {
             $this->querytable = $querytable;
         }
 
-        if ($relationtable == null) {
+        if ($relationtable === null) {
             $this->relationtable = self::RELATION_TABLE . $classId;
         } else {
             $this->relationtable = $relationtable;
         }
 
-        if ($idField == null) {
+        if ($idField === null) {
             $this->idField = self::ID_FIELD;
         } else {
             $this->idField = $idField;
         }
+
+        if ($queryIdField === null) {
+            $this->queryIdField = self::DEFAULT_QUERY_ID_COLUMN;
+        } else {
+            $this->queryIdField = $queryIdField;
+        }
     }
 
     /**
-     * Enable or disable the runtime cache
+     * Enable or disable the runtime cache. Default value is off.
      *
      * @param bool $value
      */
@@ -144,6 +180,7 @@ class InheritanceHelper
         $this->fieldIds = [];
         $this->deletionFieldIds = [];
         $this->fieldDefinitions = [];
+        $this->childFound = false;
     }
 
     /**
@@ -164,7 +201,7 @@ class InheritanceHelper
      */
     public function addRelationToCheck($fieldname, $fieldDefinition, $queryfields = null)
     {
-        if ($queryfields == null) {
+        if ($queryfields === null) {
             $this->relations[$fieldname] = $fieldname;
         } else {
             $this->relations[$fieldname] = $queryfields;
@@ -177,50 +214,55 @@ class InheritanceHelper
     /**
      * @param $oo_id
      * @param bool $createMissingChildrenRows
+     * @param array $params
      *
      * @throws \Exception
      */
-    public function doUpdate($oo_id, $createMissingChildrenRows = false)
+    public function doUpdate($oo_id, $createMissingChildrenRows = false, $params = [])
     {
         if (empty($this->fields) && empty($this->relations) && !$createMissingChildrenRows) {
             return;
         }
 
-        $fields = implode('`,`', $this->fields);
-        if (!empty($fields)) {
-            $fields = ', `' . $fields . '`';
-        }
 
-        $result = $this->db->fetchRow('SELECT ' . $this->idField . ' AS id' . $fields . ' FROM ' . $this->storetable . ' WHERE ' . $this->idField . ' = ?', $oo_id);
-        $o = new \stdClass();
-        $o->id = $result['id'];
-        $o->values = $result;
-
-        $this->treeIds = [];
-        $o->childs = $this->buildTree($result['id'], $fields);
-
-        if (!empty($this->fields)) {
-            foreach ($this->fields as $fieldname) {
-                foreach ($o->childs as $c) {
-                    $this->getIdsToUpdateForValuefields($c, $fieldname);
-                }
-
-                $this->updateQueryTable($oo_id, $this->fieldIds[$fieldname], $fieldname);
+        // only build the tree if there are fields to check
+        if (!empty($this->fields) || !empty($this->relations)) {
+            $fields = implode('`,`', $this->fields);
+            if (!empty($fields)) {
+                $fields = ', `' . $fields . '`';
             }
-        }
 
-        if (!empty($this->relations)) {
-            foreach ($this->relations as $fieldname => $fields) {
-                foreach ($o->childs as $c) {
-                    $this->getIdsToUpdateForRelationfields($c, $fieldname);
-                }
+            $result = $this->db->fetchRow('SELECT ' . $this->idField . ' AS id' . $fields . ' FROM ' . $this->storetable . ' WHERE ' . $this->idField . ' = ?', $oo_id);
+            $o = [
+                'id' => $result['id'],
+                'values' => $result
+            ];
 
-                if (is_array($fields)) {
-                    foreach ($fields as $f) {
-                        $this->updateQueryTable($oo_id, $this->fieldIds[$fieldname], $f);
+            $o['children'] = $this->buildTree($result['id'], $fields, null, $params);
+
+            if (!empty($this->fields)) {
+                foreach ($this->fields as $fieldname) {
+                    foreach ($o['children'] as $c) {
+                        $this->getIdsToUpdateForValuefields($c, $fieldname);
                     }
-                } else {
+
                     $this->updateQueryTable($oo_id, $this->fieldIds[$fieldname], $fieldname);
+                }
+            }
+
+            if (!empty($this->relations)) {
+                foreach ($this->relations as $fieldname => $fields) {
+                    foreach ($o['children'] as $c) {
+                        $this->getIdsToUpdateForRelationfields($c, $fieldname, $params);
+                    }
+
+                    if (is_array($fields)) {
+                        foreach ($fields as $f) {
+                            $this->updateQueryTable($oo_id, $this->fieldIds[$fieldname], $f);
+                        }
+                    } else {
+                        $this->updateQueryTable($oo_id, $this->fieldIds[$fieldname], $fieldname);
+                    }
                 }
             }
         }
@@ -230,14 +272,23 @@ class InheritanceHelper
         // parent object has no brick, add child to parent, add brick to parent & click save
         // without this code there will not be an entry in the query table for the child object
         if ($createMissingChildrenRows) {
-            if (!empty($this->treeIds)) {
-                $idsInTable = $this->db->fetchCol('SELECT ' . $this->idField . ' FROM ' . $this->querytable . ' WHERE ' . $this->idField . ' IN (' . implode(',', $this->treeIds) . ')');
+            // if we have a tree (which is the case if either fields or relations is configured) then
+            // rely on the childFound flag
+            // without a tree we have to do the select anyway
+            if ($this->childFound || (empty($this->fields) && empty($this->relations))) {
+                $object = DataObject\Concrete::getById($oo_id);
+                $classId = $object->getClassId();
 
-                $diff = array_diff($this->treeIds, $idsInTable);
+                $query = "SELECT b.o_id AS id "
+                    . " FROM objects b LEFT JOIN " . $this->querytable . ' a ON b.o_id = a.' . $this->idField
+                    . ' WHERE b.o_classId = ' . $this->db->quote($classId)
+                    . ' AND o_path LIKE '. $this->db->quote($object->getRealFullPath().'/%')
+                    . ' AND ISNULL(a.' . $this->queryIdField . ')';
+                $missingIds = $this->db->fetchCol($query);
 
                 // create entries for children that don't have an entry yet
                 $originalEntry = $this->db->fetchRow('SELECT * FROM ' . $this->querytable . ' WHERE ' . $this->idField . ' = ?', $oo_id);
-                foreach ($diff as $id) {
+                foreach ($missingIds as $id) {
                     $originalEntry[$this->idField] = $id;
                     $this->db->insert($this->querytable, $originalEntry);
                 }
@@ -249,8 +300,9 @@ class InheritanceHelper
      * child elements.
      *
      * @param $objectId
+     * @param array $params
      */
-    public function doDelete($objectId)
+    public function doDelete($objectId, $params = [])
     {
         // NOT FINISHED - NEEDS TO BE COMPLETED !!!
 
@@ -262,26 +314,31 @@ class InheritanceHelper
             $fields = ', `' . $fields . '`';
         }
 
-        $o = new \stdClass();
-        $o->id = $objectId;
-        $o->values = [];
-        $o->childs = $this->buildTree($objectId, $fields);
+        $o = [
+            'id' => $objectId,
+            'values' => [],
+            'children' => $this->buildTree($objectId, $fields, null, $params)
+        ];
 
         if (!empty($this->fields)) {
             foreach ($this->fields as $fieldname) {
-                foreach ($o->childs as $c) {
+                foreach ($o['children'] as $c) {
                     $this->getIdsToCheckForDeletionForValuefields($c, $fieldname);
                 }
-                $this->updateQueryTableOnDelete($objectId, $this->deletionFieldIds[$fieldname], $fieldname);
+                if (isset($this->deletionFieldIds[$fieldname])) {
+                    $this->updateQueryTableOnDelete($objectId, $this->deletionFieldIds[$fieldname], $fieldname);
+                }
             }
         }
 
         if (!empty($this->relations)) {
             foreach ($this->relations as $fieldname => $fields) {
-                foreach ($o->childs as $c) {
+                foreach ($o['children'] as $c) {
                     $this->getIdsToCheckForDeletionForRelationfields($c, $fieldname);
                 }
-                $this->updateQueryTableOnDelete($objectId, $this->deletionFieldIds[$fieldname], $fieldname);
+                if (isset($this->deletionFieldIds[$fieldname])) {
+                    $this->updateQueryTableOnDelete($objectId, $this->deletionFieldIds[$fieldname], $fieldname);
+                }
             }
         }
 
@@ -331,28 +388,58 @@ class InheritanceHelper
         }
     }
 
+
+    /**
+     * @param array $result
+     * @param string $language
+     * @param string $column
+     * @return array
+     */
+    protected function filterResultByLanguage($result, $language, $column) {
+        $filteredResult = [];
+        foreach ($result as $row) {
+            $rowId = $row['id'];
+            if ((!isset($filteredResult[$rowId]) && $row[$column] === null) || $row[$column] === $language) {
+                $filteredResult[$rowId] = $row;
+            }
+        }
+        return $filteredResult;
+
+    }
+
     /**
      * @param $currentParentId
      * @param string $fields
      * @param null $parentIdGroups
+     * @param array $params
      *
      * @return array
      */
-    protected function buildTree($currentParentId, $fields = '', $parentIdGroups = null)
+    protected function buildTree($currentParentId, $fields = '', $parentIdGroups = null, $params = [])
     {
         $objects = [];
 
         if (!$parentIdGroups) {
             $object = DataObject::getById($currentParentId);
-            $query = "SELECT b.o_id AS id $fields, b.o_type AS type, b.o_classId AS classId, b.o_parentId AS parentId, o_path, o_key FROM objects b LEFT JOIN " . $this->storetable . ' a ON b.o_id = a.' . $this->idField . ' WHERE o_path LIKE '.\Pimcore\Db::get()->quote($object->getRealFullPath().'/%') . ' GROUP BY b.o_id ORDER BY LENGTH(o_path) ASC';
+            if (isset($params['language'])) {
+                $query = "SELECT a.language as language, b.o_id AS id $fields, b.o_type AS type, b.o_classId AS classId, b.o_parentId AS parentId, o_path, o_key FROM objects b LEFT JOIN " . $this->storetable . ' a ON b.o_id = a.' . $this->idField . ' WHERE o_path LIKE ' . $this->db->quote($object->getRealFullPath() . '/%')
+                    . ' HAVING `language` = "' . $params['language'] . '" OR ISNULL(`language`)'
+                    . ' ORDER BY LENGTH(o_path) ASC';
+            } else {
+                $query = "SELECT b.o_id AS id $fields, b.o_type AS type, b.o_classId AS classId, b.o_parentId AS parentId, o_path, o_key FROM objects b LEFT JOIN " . $this->storetable . ' a ON b.o_id = a.' . $this->idField . ' WHERE o_path LIKE ' . $this->db->quote($object->getRealFullPath().'/%') . ' GROUP BY b.o_id ORDER BY LENGTH(o_path) ASC';
+            }
+            $queryCacheKey = 'tree_'.md5($query);
 
             if (self::$useRuntimeCache) {
-                $queryCacheKey = 'tree_'.md5($query);
-                $parentIdGroups = self::$runtimeCache[$queryCacheKey];
+                $parentIdGroups = self::$runtimeCache[$queryCacheKey] ?? null;
             }
 
             if (!$parentIdGroups) {
                 $result = $this->db->fetchAll($query);
+
+                if (isset($params['language'])) {
+                    $result = $this->filterResultByLanguage($result, $params['language'], 'language');
+                }
 
                 // group the results together based on the parent id's
                 $parentIdGroups = [];
@@ -372,16 +459,16 @@ class InheritanceHelper
 
         if (isset($parentIdGroups[$currentParentId])) {
             foreach ($parentIdGroups[$currentParentId] as $r) {
-                $o = new \stdClass();
-                $o->id = $r['id'];
-                $o->values = $r;
-                $o->type = $r['type'];
-                $o->classId = $r['classId'];
-                $o->childs = $this->buildTree($r['id'], $fields, $parentIdGroups);
-
-                if ($o->classId == $this->classId) {
-                    $this->treeIds[] = $o->id;
+                if ($r['classId'] == $this->classId) {
+                    $this->childFound = true;
                 }
+
+                $id = $r['id'];
+                $o = [
+                    'id' => $id,
+                    'values' => $r,
+                    'children' => $this->buildTree($id, $fields, $parentIdGroups, $params)
+                ];
 
                 $objects[] = $o;
             }
@@ -391,19 +478,50 @@ class InheritanceHelper
     }
 
     /**
+     * @param array $params
+     * @return string
+     */
+    protected function getRelationCondition($params = []) {
+        $condition = "";
+        $parts = [];
+
+        if (isset($params["inheritanceRelationContext"])) {
+            foreach ($params["inheritanceRelationContext"] as $key => $value) {
+                $parts[] = $this->db->quoteIdentifier($key) . " = " . $this->db->quote($value);
+            }
+            $condition = implode(" AND ", $parts);
+        }
+        if (count($parts) > 0) {
+            $condition = $condition . " AND ";
+        }
+
+        return $condition;
+    }
+
+    /**
      * @param $node
+     * @param array $params
      *
      * @return mixed
      */
-    protected function getRelationsForNode($node)
+    protected function getRelationsForNode(&$node, $params = [])
     {
-
         // if the relations are already set, skip here
-        if (isset($node->relations)) {
+        if (isset($node['relations'])) {
             return $node;
         }
 
-        $objectRelationsResult = $this->db->fetchAll('SELECT fieldname, count(*) as COUNT FROM ' . $this->relationtable . " WHERE src_id = ? AND fieldname IN('" . implode("','", array_keys($this->relations)) . "') GROUP BY fieldname;", [$node->id]);
+        $relationCondition = $this->getRelationCondition($params);
+
+        if (isset($params['language'])) {
+            $objectRelationsResult = $this->db->fetchAll('SELECT fieldname, position, count(*) as COUNT FROM ' . $this->relationtable . " WHERE " . $relationCondition . " src_id = ? AND fieldname IN('" . implode("','", array_keys($this->relations)) . "') "
+                . " GROUP BY position, fieldname"
+                . ' HAVING `position` = "' . $params['language'] . '" OR ISNULL(`position`)'
+                , [$node['id']]);
+            $objectRelationsResult = $this->filterResultByLanguage($objectRelationsResult, $params['language'], 'position');
+        } else {
+            $objectRelationsResult = $this->db->fetchAll('SELECT fieldname, count(*) as COUNT FROM ' . $this->relationtable . " WHERE " . $relationCondition . " src_id = ? AND fieldname IN('" . implode("','", array_keys($this->relations)) . "') GROUP BY fieldname;", [$node['id']]);
+        }
 
         $objectRelations = [];
         if (!empty($objectRelationsResult)) {
@@ -412,9 +530,9 @@ class InheritanceHelper
                     $objectRelations[$orr['fieldname']] = $orr['fieldname'];
                 }
             }
-            $node->relations = $objectRelations;
+            $node['relations'] = $objectRelations;
         } else {
-            $node->relations = [];
+            $node['relations'] = [];
         }
 
         return $node;
@@ -423,20 +541,21 @@ class InheritanceHelper
     /**
      * @param $currentNode
      * @param $fieldname
+     * @param array $params
      */
-    protected function getIdsToCheckForDeletionForValuefields($currentNode, $fieldname)
+    protected function getIdsToCheckForDeletionForValuefields($currentNode, $fieldname, $params = [])
     {
-        $value = $currentNode->values[$fieldname];
+        $value = $currentNode['values'][$fieldname];
 
         if (!$this->fieldDefinitions[$fieldname]->isEmpty($value)) {
             return;
         }
 
-        $this->deletionFieldIds[$fieldname][] = $currentNode->id;
+        $this->deletionFieldIds[$fieldname][] = $currentNode['id'];
 
-        if (!empty($currentNode->childs)) {
-            foreach ($currentNode->childs as $c) {
-                $this->getIdsToCheckForDeletionForValuefields($c, $fieldname);
+        if (!empty($currentNode['children'])) {
+            foreach ($currentNode['children'] as $c) {
+                $this->getIdsToCheckForDeletionForValuefields($c, $fieldname, $params);
             }
         }
     }
@@ -447,11 +566,11 @@ class InheritanceHelper
      */
     protected function getIdsToUpdateForValuefields($currentNode, $fieldname)
     {
-        $value = $currentNode->values[$fieldname];
+        $value = $currentNode['values'][$fieldname];
         if ($this->fieldDefinitions[$fieldname]->isEmpty($value)) {
-            $this->fieldIds[$fieldname][] = $currentNode->id;
-            if (!empty($currentNode->childs)) {
-                foreach ($currentNode->childs as $c) {
+            $this->fieldIds[$fieldname][] = $currentNode['id'];
+            if (!empty($currentNode['children'])) {
+                foreach ($currentNode['children'] as $c) {
                     $this->getIdsToUpdateForValuefields($c, $fieldname);
                 }
             }
@@ -465,18 +584,18 @@ class InheritanceHelper
     protected function getIdsToCheckForDeletionForRelationfields($currentNode, $fieldname)
     {
         $this->getRelationsForNode($currentNode);
-        if (isset($currentNode->relations[$fieldname])) {
-            $value = $currentNode->relations[$fieldname];
+        if (isset($currentNode['relations'][$fieldname])) {
+            $value = $currentNode['relations'][$fieldname];
         } else {
             $value = null;
         }
         if (!$this->fieldDefinitions[$fieldname]->isEmpty($value)) {
             return;
         }
-        $this->deletionFieldIds[$fieldname][] = $currentNode->id;
+        $this->deletionFieldIds[$fieldname][] = $currentNode['id'];
 
-        if (!empty($currentNode->childs)) {
-            foreach ($currentNode->childs as $c) {
+        if (!empty($currentNode['children'])) {
+            foreach ($currentNode['children'] as $c) {
                 $this->getIdsToCheckForDeletionForRelationfields($c, $fieldname);
             }
         }
@@ -485,20 +604,21 @@ class InheritanceHelper
     /**
      * @param $currentNode
      * @param $fieldname
+     * @param array $params
      */
-    protected function getIdsToUpdateForRelationfields($currentNode, $fieldname)
+    protected function getIdsToUpdateForRelationfields($currentNode, $fieldname, $params = [])
     {
-        $this->getRelationsForNode($currentNode);
-        if (isset($currentNode->relations[$fieldname])) {
-            $value = $currentNode->relations[$fieldname];
+        $this->getRelationsForNode($currentNode, $params);
+        if (isset($currentNode['relations'][$fieldname])) {
+            $value = $currentNode['relations'][$fieldname];
         } else {
             $value = null;
         }
         if ($this->fieldDefinitions[$fieldname]->isEmpty($value)) {
-            $this->fieldIds[$fieldname][] = $currentNode->id;
-            if (!empty($currentNode->childs)) {
-                foreach ($currentNode->childs as $c) {
-                    $this->getIdsToUpdateForRelationfields($c, $fieldname);
+            $this->fieldIds[$fieldname][] = $currentNode['id'];
+            if (!empty($currentNode['children'])) {
+                foreach ($currentNode['children'] as $c) {
+                    $this->getIdsToUpdateForRelationfields($c, $fieldname, $params);
                 }
             }
         }

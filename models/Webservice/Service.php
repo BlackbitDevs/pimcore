@@ -25,6 +25,9 @@ use Pimcore\Model\User;
 use Pimcore\Model\Webservice;
 use Pimcore\Tool\Admin;
 
+/**
+ * @deprecated
+ */
 class Service
 {
     /**
@@ -43,6 +46,8 @@ class Service
 
     /**
      * @param $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -67,6 +72,8 @@ class Service
     /**
      * @param $id
      *
+     * @return array|string
+     *
      * @throws \Exception
      */
     public function getDocumentLinkById($id)
@@ -89,6 +96,8 @@ class Service
 
     /**
      * @param $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -113,6 +122,8 @@ class Service
     /**
      * @param $id
      *
+     * @return array|string
+     *
      * @throws \Exception
      */
     public function getDocumentEmailById($id)
@@ -135,6 +146,8 @@ class Service
 
     /**
      * @param $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -159,7 +172,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -191,12 +206,16 @@ class Service
      * @param null $limit
      * @param null $groupBy
      *
+     * @return array
+     *
      * @throws \Exception
      */
     public function getDocumentList($condition = null, $order = null, $orderKey = null, $offset = null, $limit = null, $groupBy = null)
     {
         try {
             $conditionParts = [];
+            $finalCondition = null;
+
             if ($condition) {
                 $condition = '(' . $condition .')';
                 $conditionParts[] = $condition;
@@ -229,7 +248,7 @@ class Service
             $list->setUnpublished(1);
 
             $items = [];
-            /** @var $doc Document */
+            /** @var Document $doc */
             foreach ($list as $doc) {
                 $item = new Webservice\Data\Document\Listing\Item();
                 $item->id = $doc->getId();
@@ -250,6 +269,8 @@ class Service
 
     /**
      * @param $id
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -274,6 +295,8 @@ class Service
     /**
      * @param $id
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function deleteDocument($id)
@@ -296,6 +319,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateDocumentPage($wsDocument)
@@ -314,6 +339,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -334,6 +361,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateDocumentSnippet($wsDocument)
@@ -352,6 +381,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -372,6 +403,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateDocumentHardlink($wsDocument)
@@ -390,6 +423,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -410,6 +445,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateObjectFolder($wsDocument)
@@ -429,6 +466,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateObjectConcrete($wsDocument)
@@ -446,7 +485,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Asset\Folder\In $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -467,6 +508,8 @@ class Service
     /**
      * @param $wsDocument
      *
+     * @return bool
+     *
      * @throws \Exception
      */
     public function updateAssetFile($wsDocument)
@@ -484,7 +527,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Page\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -505,7 +550,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Snippet\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -527,7 +574,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Email\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -549,7 +598,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Folder\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -570,7 +621,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Link\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -591,7 +644,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Document\Hardlink\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -612,7 +667,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Asset\Folder\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -633,7 +690,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\Asset\File\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -664,7 +723,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\DataObject\Folder\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -686,7 +747,9 @@ class Service
     }
 
     /**
-     * @param $wsDocument
+     * @param Webservice\Data\DataObject\Concrete\In $wsDocument
+     *
+     * @return mixed
      *
      * @throws \Exception
      */
@@ -711,7 +774,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -734,8 +799,10 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
      * @param null $options
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -763,6 +830,8 @@ class Service
      * @param null $offset
      * @param null $limit
      * @param null $groupBy
+     *
+     * @return array
      *
      * @throws \Exception
      */
@@ -830,7 +899,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -852,7 +923,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -874,7 +947,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -907,6 +982,8 @@ class Service
      * @param null $groupBy
      * @param null $objectClass
      *
+     * @return array
+     *
      * @throws \Exception
      */
     public function getObjectList($condition = null, $order = null, $orderKey = null, $offset = null, $limit = null, $groupBy = null, $objectClass = null)
@@ -925,7 +1002,7 @@ class Service
             if (!$currentUser->isAdmin()) {
                 $userIds = $currentUser->getRoles();
                 $userIds[] = $currentUser->getId();
-                $conditionParts[] .= ' (
+                $conditionParts[] = ' (
                                                     (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(CONCAT(o_path,o_key),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                                                     OR
                                                     (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(o_path,o_key))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
@@ -984,7 +1061,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -1007,7 +1086,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -1061,6 +1142,8 @@ class Service
      */
     protected function getSaveCopyName($element, $key, $path)
     {
+        $equal = null;
+
         if ($element instanceof DataObject\AbstractObject) {
             $equal = DataObject\AbstractObject::getByPath($path . '/' . $key);
         } elseif ($element instanceof Document) {
@@ -1080,6 +1163,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -1105,6 +1190,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -1134,6 +1221,8 @@ class Service
 
     /**
      * @param $wsDocument
+     *
+     * @return bool
      *
      * @throws \Exception
      */
@@ -1180,7 +1269,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -1203,7 +1294,9 @@ class Service
     }
 
     /**
-     * @param $id
+     * @param int $id
+     *
+     * @return array|string
      *
      * @throws \Exception
      */
@@ -1238,9 +1331,7 @@ class Service
     {
         if (in_array($type, ['website', 'admin'])) {
             $listClass = '\\Pimcore\\Model\\Translation\\' . ucfirst($type) .'\\Listing';
-            /**
-             * @var $list \Pimcore\Model\Translation\Website\Listing
-             */
+            /** @var \Pimcore\Model\Translation\Website\Listing $list */
             $list = new $listClass();
             if ($key = $params['key']) {
                 $list->addConditionParam(' `key` LIKE ' . \Pimcore\Db::get()->quote('%' . $key . '%'), '');

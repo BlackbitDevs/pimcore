@@ -33,7 +33,7 @@ pimcore.object.preview = Class.create({
                 border: false,
                 autoScroll: true,
                 closable: false,
-                iconCls: "pimcore_icon_preview",
+                iconCls: "pimcore_material_icon_devices pimcore_material_icon",
                 bodyCls: "pimcore_overflow_scrolling",
                 html: '<iframe src="about:blank" style="width: 100%;" onload="' + iframeOnLoad
                     + '" frameborder="0" id="' + this.frameId + '"></iframe>'
@@ -74,9 +74,8 @@ pimcore.object.preview = Class.create({
 
     loadCurrentPreview: function () {
         var date = new Date();
-
         var url = "/admin/object/preview?id=" + this.object.data.general.o_id + "&time=" + date.getTime();
-        url = pimcore.helpers.addCsrfTokenToUrl(url);
+
         try {
             Ext.get(this.frameId).dom.src = url;
         }

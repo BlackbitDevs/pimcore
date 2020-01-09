@@ -24,7 +24,6 @@ use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Data\CustomResourcePersistingInterface;
 use Pimcore\Model\DataObject\ClassDefinition\Data\QueryResourcePersistenceAwareInterface;
 use Pimcore\Model\DataObject\ClassDefinition\Data\ResourcePersistenceAwareInterface;
-use Pimcore\Tool;
 
 /**
  * @property \Pimcore\Model\DataObject\Objectbrick\Data\AbstractData $model
@@ -51,7 +50,7 @@ class Dao extends Model\Dao\AbstractDao
         $storetable = $this->model->getDefinition()->getTableName($object->getClass(), false);
         $querytable = $this->model->getDefinition()->getTableName($object->getClass(), true);
 
-        $this->inheritanceHelper = new DataObject\Concrete\Dao\InheritanceHelper($object->getClassId(), 'o_id', $storetable, $querytable);
+        $this->inheritanceHelper = new DataObject\Concrete\Dao\InheritanceHelper($object->getClassId(), 'o_id', $storetable, $querytable, null, "o_id");
 
         DataObject\AbstractObject::setGetInheritedValues(false);
 
@@ -64,19 +63,20 @@ class Dao extends Model\Dao\AbstractDao
         $dirtyRelations = [];
 
         // remove all relations
+        $db = Db::get();
         try {
-            $db = Db::get();
-
             $where = 'src_id = ' . $object->getId() . " AND ownertype = 'objectbrick' AND ownername = '" . $this->model->getFieldname() . "' AND (position = '" . $this->model->getType() . "' OR position IS NULL OR position = '')";
             // if the model supports dirty detection then only delete the dirty fields
             // as a consequence, only do inserts only on dirty fields
             if (!DataObject\AbstractObject::isDirtyDetectionDisabled() && $this->model instanceof  DataObject\DirtyIndicatorInterface) {
-
-                /* @var  $fd DataObject\ClassDefinition\Data */
                 foreach ($fieldDefinitions as $key => $fd) {
                     if ($fd instanceof DataObject\ClassDefinition\Data\Relations\AbstractRelations) {
                         if ($fd->supportsDirtyDetection()) {
-                            if ($this->model->isFieldDirty($key) || $this->model->isFieldDirty('_self')) {
+                            if ($this->model->isFieldDirty('_self')) {
+                                $this->model->markFieldDirty($key);
+                            }
+
+                            if ($this->model->isFieldDirty($key)) {
                                 $dirtyRelations[] = $db->quote($key);
                             }
                         } else {
@@ -98,10 +98,7 @@ class Dao extends Model\Dao\AbstractDao
         foreach ($fieldDefinitions as $key => $fd) {
             $getter = 'get' . ucfirst($fd->getName());
 
-            if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'save')) {
-                if (!$fd instanceof CustomResourcePersistingInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'save', CustomResourcePersistingInterface::class);
-                }
+            if ($fd instanceof CustomResourcePersistingInterface) {
                 if ((!isset($params['newParent']) || !$params['newParent']) && isset($params['isUpdate']) && $params['isUpdate'] && !DataObject\AbstractObject::isDirtyDetectionDisabled() && $this->model instanceof DataObject\DirtyIndicatorInterface) {
                     // ownerNameList contains the dirty stuff
                     if ($fd instanceof DataObject\ClassDefinition\Data\Relations\AbstractRelations && !in_array($db->quote($key), $dirtyRelations)) {
@@ -119,18 +116,15 @@ class Dao extends Model\Dao\AbstractDao
                         ]
                     ]));
             }
-            if ($fd instanceof ResourcePersistenceAwareInterface || method_exists($fd, 'getDataForResource')) {
-                if (!$fd instanceof ResourcePersistenceAwareInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForResource', ResourcePersistenceAwareInterface::class);
-                }
+            if ($fd instanceof ResourcePersistenceAwareInterface) {
                 if (is_array($fd->getColumnType())) {
                     $insertDataArray = $fd->getDataForResource($this->model->$getter(), $object, [
-                        'context' => $this->model //\Pimcore\Model\DataObject\Objectbrick\Data\Dao
+                        'owner' => $this->model //\Pimcore\Model\DataObject\Objectbrick\Data\Dao
                     ]);
                     $data = array_merge($data, $insertDataArray);
                 } else {
                     $insertData = $fd->getDataForResource($this->model->$getter(), $object, [
-                        'context' => $this->model //\Pimcore\Model\DataObject\Objectbrick\Data\Dao
+                        'owner' => $this->model //\Pimcore\Model\DataObject\Objectbrick\Data\Dao
                     ]);
                     $data[$key] = $insertData;
                 }
@@ -165,11 +159,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         foreach ($fieldDefinitions as $key => $fd) {
-            if ($fd instanceof QueryResourcePersistenceAwareInterface || method_exists($fd, 'getDataForQueryResource')) {
-                if (!$fd instanceof QueryResourcePersistenceAwareInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForQueryResource', QueryResourcePersistenceAwareInterface::class);
-                }
-
+            if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                 $method = 'get' . $key;
                 $fieldValue = $this->model->$method();
                 $insertData = $fd->getDataForQueryResource($fieldValue, $object);
@@ -206,9 +196,11 @@ class Dao extends Model\Dao\AbstractDao
                         if (is_array($insertData)) {
                             $doInsert = false;
                             foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                if ($isEmpty && $oldDataValue == $parentDataValue) {
                                     // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                } elseif ($oldDataValue != $insertDataValue) {
                                     $doInsert = true;
                                     break;
                                 }
@@ -218,25 +210,31 @@ class Dao extends Model\Dao\AbstractDao
                                 $this->inheritanceHelper->addRelationToCheck($key, $fd, array_keys($insertData));
                             }
                         } else {
-                            if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                            $oldDataValue = $oldData[$key] ?? null;
+                            $parentDataValue = $parentData[$key] ?? null;
+                            if ($isEmpty && $oldDataValue == $parentDataValue) {
                                 // do nothing, ... value is still empty and parent data is equal to current data in query table
-                            } elseif ($oldData[$key] != $insertData) {
+                            } elseif ($oldDataValue != $insertData) {
                                 $this->inheritanceHelper->addRelationToCheck($key, $fd);
                             }
                         }
                     } else {
                         if (is_array($insertData)) {
                             foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                if ($isEmpty && $oldDataValue == $parentDataValue) {
                                     // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                } elseif ($oldDataValue != $insertDataValue) {
                                     $this->inheritanceHelper->addFieldToCheck($insertDataKey, $fd);
                                 }
                             }
                         } else {
-                            if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                            $oldDataValue = $oldData[$key] ?? null;
+                            $parentDataValue = $parentData[$key] ?? null;
+                            if ($isEmpty && $oldDataValue == $parentDataValue) {
                                 // do nothing, ... value is still empty and parent data is equal to current data in query table
-                            } elseif ($oldData[$key] != $insertData) {
+                            } elseif ($oldDataValue != $insertData) {
                                 // data changed, do check and update
                                 $this->inheritanceHelper->addFieldToCheck($key, $fd);
                             }
@@ -249,7 +247,10 @@ class Dao extends Model\Dao\AbstractDao
         $this->db->insertOrUpdate($querytable, $data);
 
         if ($inheritanceEnabled) {
-            $this->inheritanceHelper->doUpdate($object->getId(), true);
+            $this->inheritanceHelper->doUpdate($object->getId(), true,
+                ['inheritanceRelationContext' => [
+                    'ownertype' => 'objectbrick'
+                ]]);
         }
         $this->inheritanceHelper->resetFieldsToCheck();
 
@@ -305,30 +306,22 @@ class Dao extends Model\Dao\AbstractDao
                     continue;
                 }
 
-                if ($fd instanceof QueryResourcePersistenceAwareInterface || method_exists($fd, 'getDataForQueryResource')) {
-                    if (!$fd instanceof QueryResourcePersistenceAwareInterface) {
-                        Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForQueryResource', QueryResourcePersistenceAwareInterface::class);
-                    }
+                if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                     //exclude untouchables if value is not an array - this means data has not been loaded
                     //get changed fields for inheritance
                     if ($fd instanceof DataObject\ClassDefinition\Data\CalculatedValue) {
                         continue;
                     }
 
-                    if ($fd->isRelationType()) {
-                        if ($oldData[$key] != null) {
+                    if (!empty($oldData[$key])) {
+                        if ($fd->isRelationType()) {
                             $this->inheritanceHelper->addRelationToCheck($key, $fd);
-                        }
-                    } else {
-                        if ($oldData[$key] != null) {
+                        } else {
                             $this->inheritanceHelper->addFieldToCheck($key, $fd);
                         }
                     }
 
-                    if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'delete')) {
-                        if (!$fd instanceof CustomResourcePersistingInterface) {
-                            Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'delete', CustomResourcePersistingInterface::class);
-                        }
+                    if ($fd instanceof CustomResourcePersistingInterface) {
                         $fd->delete($object);
                     }
                 }

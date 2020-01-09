@@ -52,7 +52,7 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
     },
 
     getIconClass: function () {
-        return "pimcore_icon_objectsMetadata";
+        return "pimcore_icon_advancedManyToManyObjectRelation";
     },
 
     getLayout: function ($super) {
@@ -106,7 +106,7 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
             {
                 xtype: 'textfield',
                 width: 600,
-                fieldLabel: t("path_formatter_class"),
+                fieldLabel: t("path_formatter_service"),
                 name: 'pathFormatterClass',
                 value: this.datax.pathFormatterClass
             }
@@ -402,12 +402,15 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
                     columns: source.datax.columns,
                     remoteOwner: source.datax.remoteOwner,
                     lazyLoading: source.datax.lazyLoading,
-                    classes: source.datax.classes
+                    classes: source.datax.classes,
+                    enableBatchEdit: source.datax.enableBatchEdit,
+                    allowMultipleAssignments: source.datax.allowMultipleAssignments,
+                    optimizedAdminLoading: source.datax.optimizedAdminLoading
                 });
         }
     }
 
 });
 
-// @TODO BC layer, to be removed in v6.0
+// @TODO BC layer, to be removed in v7.0
 pimcore.object.classes.data.objectsMetadata = pimcore.object.classes.data.advancedManyToManyObjectRelation;

@@ -115,7 +115,6 @@ pimcore.settings.gdpr.dataproviders.sentMail = Class.create({
 
                         var rec = grid.getStore().getAt(rowIndex);
                         var url = '/admin/email/show-email-log?id=' + rec.get('id') + '&type=html';
-                        url = pimcore.helpers.addCsrfTokenToUrl(url);
                         var iframe = new Ext.Window({
                             title: t("html"),
                             width: iFrameSettings.width,
@@ -156,7 +155,6 @@ pimcore.settings.gdpr.dataproviders.sentMail = Class.create({
 
                         var rec = grid.getStore().getAt(rowIndex);
                         var url = '/admin/email/show-email-log?id=' + rec.get('id') + '&type=text';
-                        url = pimcore.helpers.addCsrfTokenToUrl(url);
                         var iframe = new Ext.Window({
                             title: t("text"),
                             width: iFrameSettings.width,
@@ -365,7 +363,7 @@ pimcore.settings.gdpr.dataproviders.sentMail = Class.create({
         this.pagingtoolbar = pimcore.helpers.grid.buildDefaultPagingToolbar(this.store);
 
         var toolbar = Ext.create('Ext.Toolbar', {
-            cls: 'main-toolbar',
+            cls: 'pimcore_main_toolbar',
             items: [
                 {
                     text: t("gdpr_dataSource_sentMail_only_email") + ": " + this.searchParams.email,

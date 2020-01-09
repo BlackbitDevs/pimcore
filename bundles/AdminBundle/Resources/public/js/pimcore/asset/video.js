@@ -269,7 +269,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
                 layout: "border",
                 items: [this.previewPanel, this.previewImagePanel],
                 title: t("preview"),
-                iconCls: "pimcore_icon_preview"
+                iconCls: "pimcore_material_icon_devices pimcore_material_icon"
             });
         }
 
@@ -292,7 +292,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
     },
 
     initPreviewVideo: function () {
-        var frameUrl = pimcore.helpers.addCsrfTokenToUrl('/admin/asset/get-preview-video?id=' + this.id);
+        var frameUrl = '/admin/asset/get-preview-video?id=' + this.id;
         var html = '<iframe src="' + frameUrl + '" frameborder="0" id="' + this.previewFrameId + '" name="' + this.previewFrameId + '" style="width:100%;"></iframe>';
         this.previewPanel.update(html);
 

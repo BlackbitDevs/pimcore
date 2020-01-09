@@ -17,13 +17,22 @@
 
 namespace Pimcore\Model;
 
-use Pimcore\Config;
+use DeepCopy\DeepCopy;
 use Pimcore\Event\Model\VersionEvent;
 use Pimcore\Event\VersionEvents;
 use Pimcore\File;
 use Pimcore\Logger;
+use Pimcore\Model\DataObject\ClassDefinition\Data;
 use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Element\ElementDumpStateInterface;
 use Pimcore\Model\Element\ElementInterface;
+use Pimcore\Model\Element\Service;
+use Pimcore\Model\Version\ElementDescriptor;
+use Pimcore\Model\Version\MarshalMatcher;
+use Pimcore\Model\Version\PimcoreClassDefinitionMatcher;
+use Pimcore\Model\Version\PimcoreClassDefinitionReplaceFilter;
+use Pimcore\Model\Version\SetDumpStateFilter;
+use Pimcore\Model\Version\UnmarshalMatcher;
 use Pimcore\Tool\Serialize;
 
 /**
@@ -31,6 +40,9 @@ use Pimcore\Tool\Serialize;
  */
 class Version extends AbstractModel
 {
+    /** @var bool for now&testing, make it possible to disable it */
+    protected static $condenseVersion = true;
+
     /**
      * @var int
      */
@@ -109,14 +121,21 @@ class Version extends AbstractModel
     /**
      * @param int $id
      *
-     * @return Version
+     * @return Version|null
      */
     public static function getById($id)
     {
-        $version = self::getModelFactory()->build(Version::class);
-        $version->getDao()->getById($id);
+        try {
+            /**
+             * @var self $version
+             */
+            $version = self::getModelFactory()->build(Version::class);
+            $version->getDao()->getById($id);
 
-        return $version;
+            return $version;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -169,20 +188,22 @@ class Version extends AbstractModel
         if (is_object($data) or is_array($data)) {
 
             // this is because of lazy loaded element inside documents and objects (eg: relational data-types, fieldcollections, ...)
+            $fromRuntime = null;
+            $cacheKey = null;
             if ($data instanceof Element\ElementInterface) {
                 Element\Service::loadAllFields($data);
             }
 
             $this->setSerialized(true);
 
-            $data->_fulldump = true;
-            $dataString = Serialize::serialize($data);
+            $condensedData = $this->marshalData($data);
+
+            $dataString = Serialize::serialize($condensedData);
 
             // revert all changed made by __sleep()
             if (method_exists($data, '__wakeup')) {
                 $data->__wakeup();
             }
-            unset($data->_fulldump);
         } else {
             $dataString = $data;
         }
@@ -199,6 +220,7 @@ class Version extends AbstractModel
 
         // check if directory exists
         $saveDir = dirname($this->getFilePath());
+
         if (!is_dir($saveDir)) {
             File::mkdir($saveDir);
         }
@@ -234,6 +256,102 @@ class Version extends AbstractModel
     }
 
     /**
+     * @param ElementInterface $data
+     *
+     * @return mixed
+     */
+    public function marshalData($data)
+    {
+        if (!self::isCondenseVersionEnabled()) {
+            return $data;
+        }
+
+        $sourceType = Service::getType($data);
+        $sourceId = $data->getId();
+
+        $copier = new DeepCopy();
+        $copier->addTypeFilter(
+            new \DeepCopy\TypeFilter\ReplaceFilter(
+                function ($currentValue) {
+                    if ($currentValue instanceof ElementInterface) {
+                        $elementType = Service::getType($currentValue);
+                        $descriptor = new ElementDescriptor($elementType, $currentValue->getId());
+
+                        return $descriptor;
+                    }
+
+                    return $currentValue;
+                }
+            ),
+            new MarshalMatcher($sourceType, $sourceId)
+        );
+
+        if ($data instanceof Concrete) {
+            $copier->addFilter(
+                new PimcoreClassDefinitionReplaceFilter(
+                    function (Concrete $object, Data $fieldDefinition, $property, $currentValue) {
+                        if ($fieldDefinition instanceof Data\CustomVersionMarshalInterface) {
+                            return $fieldDefinition->marshalVersion($object, $currentValue);
+                        }
+
+                        return $currentValue;
+                    }
+                ),
+                new PimcoreClassDefinitionMatcher()
+            );
+        }
+
+        $copier->addFilter(new \DeepCopy\Filter\Doctrine\DoctrineCollectionFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Doctrine\Common\Collections\Collection'));
+        $copier->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Pimcore\Templating\Model\ViewModelInterface'));
+        $copier->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Psr\Container\ContainerInterface'));
+        $copier->addFilter(new SetDumpStateFilter(true), new \DeepCopy\Matcher\PropertyMatcher(ElementDumpStateInterface::class, ElementDumpStateInterface::DUMP_STATE_PROPERTY_NAME));
+        $newData = $copier->copy($data);
+
+        return $newData;
+    }
+
+    /**
+     * @param $data
+     *
+     * @return mixed
+     */
+    public function unmarshalData($data)
+    {
+        $copier = new DeepCopy();
+        $copier->addTypeFilter(
+            new \DeepCopy\TypeFilter\ReplaceFilter(
+                function ($currentValue) {
+                    if ($currentValue instanceof ElementDescriptor) {
+                        $value = Service::getElementById($currentValue->getType(), $currentValue->getId());
+
+                        return $value;
+                    }
+
+                    return $currentValue;
+                }
+            ),
+            new UnmarshalMatcher()
+        );
+
+        if ($data instanceof Concrete) {
+            $copier->addFilter(
+                new PimcoreClassDefinitionReplaceFilter(
+                    function (Concrete $object, Data $fieldDefinition, $property, $currentValue) {
+                        if ($fieldDefinition instanceof Data\CustomVersionMarshalInterface) {
+                            return $fieldDefinition->unmarshalVersion($object, $currentValue);
+                        }
+
+                        return $currentValue;
+                    }
+                ),
+                new PimcoreClassDefinitionMatcher()
+            );
+        }
+
+        return $copier->copy($data);
+    }
+
+    /**
      * Delete this Version
      */
     public function delete()
@@ -262,12 +380,15 @@ class Version extends AbstractModel
     /**
      * Object
      *
+     * @param $renewReferences
+     *
      * @return mixed
      */
-    public function loadData()
+    public function loadData($renewReferences = true)
     {
         $data = null;
         $zipped = false;
+        $filePath = null;
 
         // check both the legacy file path and the new structure
         foreach ([$this->getFilePath(), $this->getLegacyFilePath()] as $path) {
@@ -303,6 +424,8 @@ class Version extends AbstractModel
 
                 return;
             }
+
+            $data = $this->unmarshalData($data);
         }
 
         if ($data instanceof Concrete) {
@@ -310,14 +433,17 @@ class Version extends AbstractModel
         }
 
         if ($data instanceof Asset && file_exists($this->getBinaryFilePath())) {
-            $binaryHandle = fopen($this->getBinaryFilePath(), 'r+', false, File::getContext());
+            $binaryHandle = fopen($this->getBinaryFilePath(), 'rb', false, File::getContext());
             $data->setStream($binaryHandle);
         } elseif ($data instanceof Asset && $data->data) {
             // this is for backward compatibility
             $data->setData($data->data);
         }
 
-        $data = Element\Service::renewReferences($data);
+        if ($renewReferences) {
+            $data = Element\Service::renewReferences($data);
+        }
+
         $this->setData($data);
 
         return $data;
@@ -330,7 +456,7 @@ class Version extends AbstractModel
      *
      * @return string
      */
-    protected function getFilePath(?int $id = null)
+    public function getFilePath(?int $id = null)
     {
         if (!$id) {
             $id = $this->getId();
@@ -348,7 +474,7 @@ class Version extends AbstractModel
     /**
      * @return string
      */
-    protected function getBinaryFilePath()
+    public function getBinaryFilePath()
     {
         // compatibility
         $compatibilityPath = $this->getLegacyFilePath() . '.bin';
@@ -362,43 +488,9 @@ class Version extends AbstractModel
     /**
      * @return string
      */
-    protected function getLegacyFilePath()
+    public function getLegacyFilePath()
     {
         return PIMCORE_VERSION_DIRECTORY . '/' . $this->getCtype() . '/' . $this->getId();
-    }
-
-    /**
-     * the cleanup is now done in the maintenance see self::maintenanceCleanUp()
-     *
-     * @deprecated
-     */
-    public function cleanHistory()
-    {
-        if ($this->getCtype() == 'document') {
-            $conf = Config::getSystemConfig()->documents->versions;
-        } elseif ($this->getCtype() == 'asset') {
-            $conf = Config::getSystemConfig()->assets->versions;
-        } elseif ($this->getCtype() == 'object') {
-            $conf = Config::getSystemConfig()->objects->versions;
-        } else {
-            return;
-        }
-
-        $days = [];
-        $steps = [];
-
-        if (intval($conf->days) > 0) {
-            $days = $this->getDao()->getOutdatedVersionsDays($conf->days);
-        } else {
-            $steps = $this->getDao()->getOutdatedVersionsSteps(intval($conf->steps));
-        }
-
-        $versions = array_merge($days, $steps);
-
-        foreach ($versions as $id) {
-            $version = Version::getById($id);
-            $version->delete();
-        }
     }
 
     /**
@@ -666,149 +758,19 @@ class Version extends AbstractModel
         $this->binaryFileId = $binaryFileId;
     }
 
-    public function maintenanceCompress()
+    /**
+     * @return bool
+     */
+    public static function isCondenseVersionEnabled()
     {
-        $perIteration = 100;
-        $alreadyCompressedCounter = 0;
-        $overallCounter = 0;
-
-        $list = new Version\Listing();
-        $list->setCondition('date < ' . (time() - 86400 * 30));
-        $list->setOrderKey('date');
-        $list->setOrder('DESC');
-        $list->setLimit($perIteration);
-
-        $total = $list->getTotalCount();
-        $iterations = ceil($total / $perIteration);
-
-        for ($i = 0; $i < $iterations; $i++) {
-            Logger::debug('iteration ' . ($i + 1) . ' of ' . $iterations);
-
-            $list->setOffset($i * $perIteration);
-
-            $versions = $list->load();
-
-            foreach ($versions as $version) {
-                $overallCounter++;
-
-                if (file_exists($version->getFilePath())) {
-                    gzcompressfile($version->getFilePath(), 9);
-                    @unlink($version->getFilePath());
-
-                    $alreadyCompressedCounter = 0;
-
-                    Logger::debug('version compressed:' . $version->getFilePath());
-                    Logger::debug('Waiting 1 sec to not kill the server...');
-                    sleep(1);
-                } else {
-                    $alreadyCompressedCounter++;
-                }
-            }
-
-            \Pimcore::collectGarbage();
-
-            // check here how many already compressed versions we've found so far, if over 100 skip here
-            // this is necessary to keep the load on the system low
-            // is would be very unusual that older versions are not already compressed, so we assume that only new
-            // versions need to be compressed, that's not perfect but a compromise we can (hopefully) live with.
-            if ($alreadyCompressedCounter > 100) {
-                Logger::debug('Over ' . $alreadyCompressedCounter . " versions were already compressed before, it doesn't seem that there are still uncompressed versions in the past, skip...");
-
-                return;
-            }
-        }
+        return self::$condenseVersion;
     }
 
-    public function maintenanceCleanUp()
+    /**
+     * @param bool $condenseVersion
+     */
+    public static function setCondenseVersion($condenseVersion)
     {
-        $conf['document'] = Config::getSystemConfig()->documents->versions;
-        $conf['asset'] = Config::getSystemConfig()->assets->versions;
-        $conf['object'] = Config::getSystemConfig()->objects->versions;
-
-        $elementTypes = [];
-
-        foreach ($conf as $elementType => $tConf) {
-            if (intval($tConf->days) > 0) {
-                $versioningType = 'days';
-                $value = intval($tConf->days);
-            } else {
-                $versioningType = 'steps';
-                $value = intval($tConf->steps);
-            }
-
-            if ($versioningType) {
-                $elementTypes[] = [
-                    'elementType' => $elementType,
-                    $versioningType => $value
-                ];
-            }
-        }
-
-        $ignoredIds = [];
-
-        while (true) {
-            $versions = $this->getDao()->maintenanceGetOutdatedVersions($elementTypes, $ignoredIds);
-            if (count($versions) == 0) {
-                break;
-            }
-            $counter = 0;
-
-            Logger::debug('versions to check: ' . count($versions));
-            if (is_array($versions) && !empty($versions)) {
-                $totalCount = count($versions);
-                foreach ($versions as $index => $id) {
-                    try {
-                        $version = Version::getById($id);
-                    } catch (\Exception $e) {
-                        $ignoredIds[] = $id;
-                        Logger::debug('Version with ' . $id . " not found\n");
-                        continue;
-                    }
-                    $counter++;
-
-                    // do not delete public versions
-                    if ($version->getPublic()) {
-                        $ignoredIds[] = $version->getId();
-                        continue;
-                    }
-
-                    // do not delete versions referenced in the scheduler
-                    if ($this->getDao()->isVersionUsedInScheduler($version)) {
-                        $ignoredIds[] = $version->getId();
-                        continue;
-                    }
-
-                    if ($version->getCtype() == 'document') {
-                        $element = Document::getById($version->getCid());
-                    } elseif ($version->getCtype() == 'asset') {
-                        $element = Asset::getById($version->getCid());
-                    } elseif ($version->getCtype() == 'object') {
-                        $element = DataObject::getById($version->getCid());
-                    }
-
-                    if ($element instanceof ElementInterface) {
-                        Logger::debug('currently checking Element-ID: ' . $element->getId() . ' Element-Type: ' . Element\Service::getElementType($element) . ' in cycle: ' . $counter . '/' . $totalCount);
-
-                        if ($element->getModificationDate() >= $version->getDate()) {
-                            // delete version if it is outdated
-                            Logger::debug('delete version: ' . $version->getId() . ' because it is outdated');
-                            $version->delete();
-                        } else {
-                            $ignoredIds[] = $version->getId();
-                            Logger::debug('do not delete version (' . $version->getId() . ") because version's date is newer than the actual modification date of the element. Element-ID: " . $element->getId() . ' Element-Type: ' . Element\Service::getElementType($element));
-                        }
-                    } else {
-                        // delete version if the corresponding element doesn't exist anymore
-                        Logger::debug('delete version (' . $version->getId() . ") because the corresponding element doesn't exist anymore");
-                        $version->delete();
-                    }
-
-                    // call the garbage collector if memory consumption is > 100MB
-                    if (memory_get_usage() > 100000000) {
-                        \Pimcore::collectGarbage();
-                    }
-                }
-            }
-        }
+        self::$condenseVersion = $condenseVersion;
     }
 }

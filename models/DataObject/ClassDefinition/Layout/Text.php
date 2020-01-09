@@ -44,6 +44,11 @@ class Text extends Model\DataObject\ClassDefinition\Layout
     public $renderingData;
 
     /**
+     * @var bool
+     */
+    public $border = false;
+
+    /**
      * @return string
      */
     public function getHtml()
@@ -95,9 +100,29 @@ class Text extends Model\DataObject\ClassDefinition\Layout
         $this->renderingData = $renderingData;
     }
 
-    /** Override point for Enriching the layout definition before the layout is returned to the admin interface.
+    /**
+     * @return bool
+     */
+    public function getBorder(): bool
+    {
+        return $this->border;
+    }
+
+    /**
+     * @param bool $border
+     */
+    public function setBorder(bool $border): void
+    {
+        $this->border = $border;
+    }
+
+    /**
+     * Override point for Enriching the layout definition before the layout is returned to the admin interface.
+     *
      * @param $object Model\DataObject\Concrete
      * @param array $context additional contextual data
+     *
+     * @return self
      */
     public function enrichLayoutDefinition($object, $context = [])
     {

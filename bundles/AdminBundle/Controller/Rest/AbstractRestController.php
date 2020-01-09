@@ -18,7 +18,6 @@ use Pimcore\Bundle\AdminBundle\Controller\AdminController;
 use Pimcore\Bundle\AdminBundle\HttpFoundation\JsonResponse;
 use Pimcore\Event\Webservice\FilterEvent;
 use Pimcore\Event\WebserviceEvents;
-use Pimcore\FeatureToggles\Features\DebugMode;
 use Pimcore\Http\Exception\ResponseException;
 use Pimcore\Model\Webservice\Service;
 use Psr\Log\LoggerInterface;
@@ -27,6 +26,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Stopwatch\Stopwatch;
 
+/**
+ * @deprecated
+ */
 abstract class AbstractRestController extends AdminController
 {
     /**
@@ -191,7 +193,7 @@ abstract class AbstractRestController extends AdminController
 
         if (!is_array($data)) {
             $message = 'Invalid data';
-            if (\Pimcore::inDebugMode(DebugMode::REST_ERRORS)) {
+            if (\Pimcore::inDebugMode()) {
                 $message .= ': ' . $error;
             }
 
@@ -284,7 +286,7 @@ abstract class AbstractRestController extends AdminController
     }
 
     /**
-     * @param $condition
+     * @param string $condition
      *
      * @throws \Exception
      */
@@ -302,7 +304,7 @@ abstract class AbstractRestController extends AdminController
      */
     protected function buildCondition(Request $request)
     {
-        $q = trim(urldecode($request->get('q')));
+        $q = trim($request->get('q'));
         if (!$q) {
             return;
         }
@@ -320,7 +322,8 @@ abstract class AbstractRestController extends AdminController
     }
 
     /**
-     * @param FilterEvent $event
+     * @param Request $request
+     * @param FilterEvent $eventData
      */
     public function dispatchBeforeLoadEvent(Request $request, FilterEvent $eventData)
     {

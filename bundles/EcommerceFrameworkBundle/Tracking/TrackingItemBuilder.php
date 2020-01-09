@@ -14,13 +14,13 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\Tracking;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\IShipping;
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICartItem;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartItemInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\ShippingInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrderItem;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\ICheckoutable;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IProduct;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Model\CheckoutableInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Model\ProductInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
 use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\Element\ElementInterface;
@@ -29,25 +29,30 @@ use Pimcore\Model\Element\ElementInterface;
  * Takes an object (e.g. a product, an order) and transforms it into a
  * normalized tracking object (e.g. a ProductAction or a Transaction).
  */
-class TrackingItemBuilder implements ITrackingItemBuilder
+class TrackingItemBuilder implements TrackingItemBuilderInterface
 {
     /**
      * Build a product impression object
      *
-     * @param IProduct|ElementInterface $product
+     * @param ProductInterface|ElementInterface $product
+     * @param string $list
      *
      * @return ProductImpression
      */
-    public function buildProductImpressionItem(IProduct $product)
+    public function buildProductImpressionItem(ProductInterface $product, string $list = 'default')
     {
         $item = new ProductImpression();
+        $this->initProductAttributes($item, $product);
+
         $item
             ->setId($product->getId())
             ->setName($this->normalizeName($product->getOSName()))
-            ->setCategories($this->getProductCategories($product));
+            ->setCategories($this->getProductCategories($product))
+            ->setList($list)
+        ;
 
         // set price if product is ready to check out
-        if ($product instanceof ICheckoutable) {
+        if ($product instanceof CheckoutableInterface) {
             $item->setPrice($product->getOSPrice()->getAmount()->asNumeric());
         }
 
@@ -57,34 +62,53 @@ class TrackingItemBuilder implements ITrackingItemBuilder
     /**
      * Build a product view object
      *
-     * @param IProduct|ElementInterface $product
+     * @param ProductInterface|ElementInterface $product
      *
      * @return ProductAction
      */
-    public function buildProductViewItem(IProduct $product)
+    public function buildProductViewItem(ProductInterface $product)
     {
         return $this->buildProductActionItem($product);
     }
 
     /**
+     * Init common product action attributes and add additional application-specific product action attributes.
+     *
+     * @param AbstractProductData $item the tracking item that is going to be serialized later on.
+     * @param ProductInterface $product
+     */
+    protected function initProductAttributes(AbstractProductData $item, ProductInterface $product)
+    {
+        $item
+            ->setId($product->getOSProductNumber())
+            ->setName($this->normalizeName($product->getOSName()))
+            ->setCategories($this->getProductCategories($product))
+            ->setBrand($this->getProductBrand($product))
+        ;
+
+        //
+        //Add additional data to tracking items of type "product".
+        //Example: $item->addAdditionalAttribute("ean", "test-EAN");
+        //
+    }
+
+    /**
      * Build a product action item
      *
-     * @param IProduct|ElementInterface $product
+     * @param ProductInterface|ElementInterface $product
      * @param int $quantity
      *
      * @return ProductAction
      */
-    public function buildProductActionItem(IProduct $product, $quantity = 1)
+    public function buildProductActionItem(ProductInterface $product, $quantity = 1)
     {
         $item = new ProductAction();
-        $item
-            ->setId($product->getId())
-            ->setName($this->normalizeName($product->getOSName()))
-            ->setCategories($this->getProductCategories($product))
-            ->setQuantity($quantity);
+        $item->setQuantity($quantity);
+
+        $this->initProductAttributes($item, $product);
 
         // set price if product is ready to check out
-        if ($product instanceof ICheckoutable) {
+        if ($product instanceof CheckoutableInterface) {
             $item->setPrice($product->getOSPrice()->getAmount()->asNumeric());
         }
 
@@ -136,11 +160,11 @@ class TrackingItemBuilder implements ITrackingItemBuilder
     /**
      * Build checkout items
      *
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @return ProductAction[]
      */
-    public function buildCheckoutItemsByCart(ICart $cart)
+    public function buildCheckoutItemsByCart(CartInterface $cart)
     {
         $items = [];
 
@@ -149,7 +173,7 @@ class TrackingItemBuilder implements ITrackingItemBuilder
         }
 
         foreach ($cart->getItems() as $cartItem) {
-            /** @var IProduct $product */
+            /** @var ProductInterface $product */
             $product = $cartItem->getProduct();
             if (!$product) {
                 continue;
@@ -171,18 +195,16 @@ class TrackingItemBuilder implements ITrackingItemBuilder
      */
     public function buildCheckoutItem(AbstractOrder $order, AbstractOrderItem $orderItem)
     {
-        /** @var IProduct $product */
+        /** @var ProductInterface $product */
         $product = $orderItem->getProduct();
 
         $item = new ProductAction();
         $item
-            ->setId($orderItem->getProductNumber())
             ->setTransactionId($order->getOrdernumber())
-            ->setName($this->normalizeName($orderItem->getProductName()))
-            ->setCategories($this->getProductCategories($product))
-            ->setBrand($this->getProductBrand($product))
             ->setPrice(Decimal::create($orderItem->getTotalPrice())->div($orderItem->getAmount())->asNumeric())
             ->setQuantity($orderItem->getAmount());
+
+        $this->initProductAttributes($item, $product);
 
         return $item;
     }
@@ -190,23 +212,20 @@ class TrackingItemBuilder implements ITrackingItemBuilder
     /**
      * Build a checkout item object by cart Item
      *
-     * @param ICartItem $cartItem
+     * @param CartItemInterface $cartItem
      *
      * @return ProductAction
      */
-    public function buildCheckoutItemByCartItem(ICartItem $cartItem)
+    public function buildCheckoutItemByCartItem(CartItemInterface $cartItem)
     {
-        /** @var IProduct|AbstractObject $product */
+        /** @var ProductInterface|AbstractObject $product */
         $product = $cartItem->getProduct();
 
         $item = new ProductAction();
-        $item
-            ->setId($product->getId())
-            ->setName($this->normalizeName($product->getOSName()))
-            ->setCategories($this->getProductCategories($product))
-            ->setBrand($this->getProductBrand($product))
-            ->setPrice($cartItem->getTotalPrice()->getAmount()->div($cartItem->getCount())->asNumeric())
+        $item->setPrice($cartItem->getTotalPrice()->getAmount()->div($cartItem->getCount())->asNumeric())
             ->setQuantity($cartItem->getCount());
+
+        $this->initProductAttributes($item, $product);
 
         return $item;
     }
@@ -214,12 +233,12 @@ class TrackingItemBuilder implements ITrackingItemBuilder
     /**
      * Get a product's categories
      *
-     * @param IProduct $product
+     * @param ProductInterface $product
      * @param bool $first
      *
      * @return array|string
      */
-    protected function getProductCategories(IProduct $product, $first = false)
+    protected function getProductCategories(ProductInterface $product, $first = false)
     {
         $categories = [];
         if ($product && method_exists($product, 'getCategories')) {
@@ -242,11 +261,11 @@ class TrackingItemBuilder implements ITrackingItemBuilder
     /**
      * Get a product's brand
      *
-     * @param IProduct $product
+     * @param ProductInterface $product
      *
      * @return null|string
      */
-    protected function getProductBrand(IProduct $product)
+    protected function getProductBrand(ProductInterface $product)
     {
         $brandName = null;
         if ($product && method_exists($product, 'getBrand')) {
@@ -275,7 +294,7 @@ class TrackingItemBuilder implements ITrackingItemBuilder
         $modifications = $order->getPriceModifications();
         if ($modifications) {
             foreach ($modifications as $modification) {
-                if ($modification instanceof IShipping) {
+                if ($modification instanceof ShippingInterface) {
                     $shipping = $shipping->add($modification->getCharge());
                 }
             }

@@ -59,7 +59,6 @@ class Composer
     {
         $rootPath = self::getRootPath($event);
         self::parametersYmlCheck($rootPath);
-        self::zendFrameworkOptimization($rootPath);
     }
 
     /**
@@ -69,7 +68,6 @@ class Composer
     {
         $rootPath = self::getRootPath($event);
         self::parametersYmlCheck($rootPath);
-        self::zendFrameworkOptimization($rootPath);
     }
 
     /**
@@ -121,64 +119,28 @@ class Composer
     public static function parametersYmlCheck($rootPath)
     {
         // ensure that there's a parameters.yml, if not we'll create a temporary one, so that the requirement check works
+        $parameters = '';
         $parametersYml = $rootPath . '/app/config/parameters.yml';
         $parametersYmlExample = $rootPath . '/app/config/parameters.example.yml';
         if (!file_exists($parametersYml) && file_exists($parametersYmlExample)) {
-            $secret = base64_encode(random_bytes(24));
             $parameters = file_get_contents($parametersYmlExample);
-            $parameters = str_replace('ThisTokenIsNotSoSecretChangeIt', $secret, $parameters);
-            file_put_contents($parametersYml, $parameters);
+        } elseif (file_exists($parametersYml)) {
+            $parameters = file_get_contents($parametersYml);
         }
-    }
 
-    /**
-     * @param $rootPath
-     */
-    public static function zendFrameworkOptimization($rootPath)
-    {
-        // @TODO: Remove in 6.0
-
-        // strips all require_once out of the sources
-        // see also: http://framework.zend.com/manual/1.10/en/performance.classloading.html#performance.classloading.striprequires.sed
-        $zfPath = $rootPath . '/vendor/zendframework/zendframework1/library/Zend/';
-
-        if (is_dir($zfPath)) {
-            $directory = new \RecursiveDirectoryIterator($zfPath);
-            $iterator = new \RecursiveIteratorIterator($directory);
-            $regex = new \RegexIterator($iterator, '/^.+\.php$/i', \RecursiveRegexIterator::GET_MATCH);
-
-            $excludePatterns = [
-                '/Loader/Autoloader.php$',
-                '/Loader/ClassMapAutoloader.php$',
-                '/Application.php$',
-            ];
-
-            foreach ($regex as $file) {
-                $file = $file[0];
-
-                $excluded = false;
-                foreach ($excludePatterns as $pattern) {
-                    if (preg_match('@' . $pattern . '@', $file)) {
-                        $excluded = true;
-                        break;
-                    }
-                }
-
-                if (!$excluded) {
-                    $content = file_get_contents($file);
-                    $content = preg_replace('@([^/])(require_once)@', '$1//$2', $content);
-                    file_put_contents($file, $content);
-                }
-            }
+        // ensure that there's a random secret defined
+        if (strpos($parameters, 'ThisTokenIsNotSoSecretChangeIt')) {
+            $parameters = preg_replace_callback('/ThisTokenIsNotSoSecretChangeIt/', function ($match) {
+                // generate a unique token for each occurrence
+                return base64_encode(random_bytes(24));
+            }, $parameters);
+            file_put_contents($parametersYml, $parameters);
         }
     }
 
     public static function prePackageUpdate(PackageEvent $event)
     {
-
-        /**
-         * @var $operation UpdateOperation
-         */
+        /** @var UpdateOperation $operation */
         $operation = $event->getOperation();
         if ($operation->getInitialPackage()->getName() == 'pimcore/pimcore') {
             $operation->getInitialPackage()->getSourceReference();
@@ -298,5 +260,69 @@ class Composer
     private static function removeDecoration($string)
     {
         return preg_replace("/\033\[[^m]*m/", '', $string);
+    }
+
+    /**
+     *
+     * The following is copied from \Sensio\Bundle\DistributionBundle\Composer\ScriptHandler
+     *
+     * Installs the assets under the web root directory.
+     *
+     * For better interoperability, assets are copied instead of symlinked by default.
+     *
+     * Even if symlinks work on Windows, this is only true on Windows Vista and later,
+     * but then, only when running the console with admin rights or when disabling the
+     * strict user permission checks (which can be done on Windows 7 but not on Windows
+     * Vista).
+     *
+     * @param Event $event
+     */
+    public static function installAssets(Event $event)
+    {
+        $options = static::getOptions($event);
+        $consoleDir = static::getConsoleDir($event, 'install assets');
+
+        if (null === $consoleDir) {
+            return;
+        }
+
+        $webDir = $options['symfony-web-dir'];
+
+        $symlink = '';
+        if ('symlink' == $options['symfony-assets-install']) {
+            $symlink = '--symlink ';
+        } elseif ('relative' == $options['symfony-assets-install']) {
+            $symlink = '--symlink --relative ';
+        }
+
+        if (!static::hasDirectory($event, 'symfony-web-dir', $webDir, 'install assets')) {
+            return;
+        }
+
+        static::executeCommand($event, $consoleDir, 'assets:install '.$symlink.escapeshellarg($webDir), $options['process-timeout']);
+    }
+
+    /**
+     * The following is copied from \Sensio\Bundle\DistributionBundle\Composer\ScriptHandler
+     *
+     * Clears the Symfony cache.
+     *
+     * @param Event $event
+     */
+    public static function clearCache(Event $event)
+    {
+        $options = static::getOptions($event);
+        $consoleDir = static::getConsoleDir($event, 'clear the cache');
+
+        if (null === $consoleDir) {
+            return;
+        }
+
+        $warmup = '';
+        if (!$options['symfony-cache-warmup']) {
+            $warmup = ' --no-warmup';
+        }
+
+        static::executeCommand($event, $consoleDir, 'cache:clear'.$warmup, $options['process-timeout']);
     }
 }

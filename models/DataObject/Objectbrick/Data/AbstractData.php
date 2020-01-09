@@ -20,28 +20,43 @@ namespace Pimcore\Model\DataObject\Objectbrick\Data;
 use Pimcore\Model;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\DataObject\Exception\InheritanceParentNotFoundException;
 
 /**
  * @method Dao getDao()
  */
-abstract class AbstractData extends Model\AbstractModel implements Model\DataObject\LazyLoadedFieldsInterface
+abstract class AbstractData extends Model\AbstractModel implements Model\DataObject\LazyLoadedFieldsInterface, Model\Element\ElementDumpStateInterface
 {
     use Model\DataObject\Traits\LazyLoadedRelationTrait;
+
+    use Model\Element\ElementDumpStateTrait;
+
+    /**
+     * Will be overriden by the actual ObjectBrick
+     *
+     * @var string
+     */
+    protected $type;
 
     /**
      * @var string
      */
-    public $fieldname;
+    protected $fieldname;
 
     /**
      * @var bool
      */
-    public $doDelete;
+    protected $doDelete;
 
     /**
-     * @var DataObject\Concrete
+     * @var Model\DataObject\Concrete
      */
-    public $object;
+    protected $object;
+
+    /**
+     * @var int
+     */
+    protected $objectId;
 
     /**
      * @param DataObject\Concrete $object
@@ -80,7 +95,7 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
     }
 
     /**
-     * @return mixed
+     * @return DataObject\Objectbrick\Definition
      */
     public function getDefinition()
     {
@@ -148,22 +163,27 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
      * @param $key
      *
      * @return mixed
+     *
+     * @throws InheritanceParentNotFoundException
      */
     public function getValueFromParent($key)
     {
-        $parent = DataObject\Service::hasInheritableParentObject($this->getObject());
+        $object = $this->getObject();
+        if ($object) {
+            $parent = DataObject\Service::hasInheritableParentObject($object);
 
-        if (!empty($parent)) {
-            $containerGetter = 'get' . ucfirst($this->fieldname);
-            $brickGetter = 'get' . ucfirst($this->getType());
-            $getter = 'get' . ucfirst($key);
+            if (!empty($parent)) {
+                $containerGetter = 'get' . ucfirst($this->fieldname);
+                $brickGetter = 'get' . ucfirst($this->getType());
+                $getter = 'get' . ucfirst($key);
 
-            if ($parent->$containerGetter()->$brickGetter()) {
-                return $parent->$containerGetter()->$brickGetter()->$getter();
+                if ($parent->$containerGetter()->$brickGetter()) {
+                    return $parent->$containerGetter()->$brickGetter()->$getter();
+                }
             }
         }
 
-        return null;
+        throw new InheritanceParentNotFoundException('No parent object available to get a value from');
     }
 
     /**
@@ -173,6 +193,7 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
      */
     public function setObject($object)
     {
+        $this->objectId = $object ? $object->getId() : null;
         $this->object = $object;
 
         return $this;
@@ -183,6 +204,10 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
      */
     public function getObject()
     {
+        if ($this->objectId && !$this->object) {
+            $this->setObject(Concrete::getById($this->objectId));
+        }
+
         return $this->object;
     }
 
@@ -256,10 +281,10 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
     public function __sleep()
     {
         $parentVars = parent::__sleep();
-        $blockedVars = ['loadedLazyKeys'];
+        $blockedVars = ['loadedLazyKeys', 'object'];
         $finalVars = [];
 
-        if (!isset($this->getObject()->_fulldump)) {
+        if (!$this->isInDumpState()) {
             //Remove all lazy loaded fields if item gets serialized for the cache (not for versions)
             $blockedVars = array_merge($this->getLazyLoadedFieldNames(), $blockedVars);
         }
@@ -271,5 +296,12 @@ abstract class AbstractData extends Model\AbstractModel implements Model\DataObj
         }
 
         return $finalVars;
+    }
+
+    public function __wakeup()
+    {
+        if ($this->object) {
+            $this->objectId = $this->object->getId();
+        }
     }
 }

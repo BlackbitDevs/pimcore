@@ -14,21 +14,21 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICartItem;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartItemInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\UnsupportedException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Factory;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IEnvironment;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrderItem;
 use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\Order\Listing;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Exception\ProviderNotFoundException;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\IStatus;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment\IPayment;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment\PaymentInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\StatusInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\TaxManagement\TaxEntry;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\IPriceInfo;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\PriceInfoInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
-use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\IVoucherService;
+use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\VoucherServiceInterface;
 use Pimcore\File;
 use Pimcore\Logger;
 use Pimcore\Model\DataObject\Folder;
@@ -37,20 +37,20 @@ use Pimcore\Model\FactoryInterface;
 use Pimcore\Tool;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class OrderManager implements IOrderManager
+class OrderManager implements OrderManagerInterface
 {
     /**
-     * @var IEnvironment
+     * @var EnvironmentInterface
      */
     protected $environment;
 
     /**
-     * @var IOrderAgentFactory
+     * @var OrderAgentFactoryInterface
      */
     protected $orderAgentFactory;
 
     /**
-     * @var IVoucherService
+     * @var VoucherServiceInterface
      */
     protected $voucherService;
 
@@ -80,11 +80,17 @@ class OrderManager implements IOrderManager
     protected $orderItemClassName;
 
     public function __construct(
-        IEnvironment $environment,
-        IOrderAgentFactory $orderAgentFactory,
-        IVoucherService $voucherService,
+        EnvironmentInterface $environment,
+        OrderAgentFactoryInterface $orderAgentFactory,
+        VoucherServiceInterface $voucherService,
         array $options = []
     ) {
+        @trigger_error(
+            'Class ' . self::class . ' is deprecated since version 6.1.0 and will be removed in 7.0.0. ' .
+            ' Use ' . \Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\V7\OrderManager::class . ' class instead.',
+            E_USER_DEPRECATED
+        );
+
         $this->environment = $environment;
         $this->orderAgentFactory = $orderAgentFactory;
         $this->voucherService = $voucherService;
@@ -125,7 +131,7 @@ class OrderManager implements IOrderManager
      * Sets the model factory. For BC, this is currently added as extra method call. The required annotation
      * makes sure this is called via autowiring.
      *
-     * TODO Pimcore 6 set modelFactory as constructor dependency
+     * TODO Pimcore 7 set modelFactory as constructor dependency
      *
      * @required
      *
@@ -146,11 +152,11 @@ class OrderManager implements IOrderManager
     }
 
     /**
-     * @return IOrderList
+     * @return OrderListInterface
      */
     public function createOrderList()
     {
-        /* @var IOrderList $orderList */
+        /* @var OrderListInterface $orderList */
         $orderList = new $this->options['list_class'];
         $orderList->setItemClassName($this->options['list_item_class']);
 
@@ -160,7 +166,7 @@ class OrderManager implements IOrderManager
     /**
      * @param AbstractOrder $order
      *
-     * @return IOrderAgent
+     * @return OrderAgentInterface
      */
     public function createOrderAgent(AbstractOrder $order)
     {
@@ -248,23 +254,23 @@ class OrderManager implements IOrderManager
     /**
      * returns cart id for order object
      *
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @return string
      */
-    protected function createCartId(ICart $cart)
+    protected function createCartId(CartInterface $cart)
     {
         return get_class($cart) . '_' . $cart->getId();
     }
 
     /**
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @return null|AbstractOrder
      *
      * @throws \Exception
      */
-    public function getOrderFromCart(ICart $cart)
+    public function getOrderFromCart(CartInterface $cart)
     {
         $cartId = $this->createCartId($cart);
 
@@ -285,7 +291,7 @@ class OrderManager implements IOrderManager
     }
 
     /**
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @return AbstractOrder
      *
@@ -293,7 +299,7 @@ class OrderManager implements IOrderManager
      * @throws UnsupportedException
      *
      */
-    public function getOrCreateOrderFromCart(ICart $cart)
+    public function getOrCreateOrderFromCart(CartInterface $cart)
     {
         $order = $this->getOrderFromCart($cart);
 
@@ -310,7 +316,13 @@ class OrderManager implements IOrderManager
 
             $order->setOrdernumber($tempOrdernumber);
             $order->setOrderdate(new \DateTime());
-            $order->setCartId($this->createCartId($cart));
+
+            $cartId = $this->createCartId($cart);
+            if(strlen($cartId) > 190) {
+                throw new \Exception('CartId cannot be longer than 190 characters');
+            }
+
+            $order->setCartId($cartId);
         }
 
         // check if pending payment. if one, do not update order from cart
@@ -343,7 +355,7 @@ class OrderManager implements IOrderManager
         $currency = $cart->getPriceCalculator()->getGrandTotal()->getCurrency();
         $order->setCurrency($currency->getShortName());
 
-        $order->save();
+        $order->save(['versionNote' => 'OrderManager::getOrCreateOrderFromCart - save order to add items.']);
 
         // for each cart item and cart sub item create corresponding order items
         $orderItems = $this->applyOrderItems($cart->getItems(), $order);
@@ -356,7 +368,7 @@ class OrderManager implements IOrderManager
         $order->setGiftItems($orderGiftItems);
 
         $order = $this->applyCustomCheckoutDataToOrder($cart, $order);
-        $order->save();
+        $order->save(['versionNote' => 'OrderManager::getOrCreateOrderFromCart - final save.']);
 
         $this->cleanupZombieOrderItems($order);
 
@@ -428,7 +440,7 @@ class OrderManager implements IOrderManager
         return $orderItems;
     }
 
-    protected function applyVoucherTokens(AbstractOrder $order, ICart $cart)
+    protected function applyVoucherTokens(AbstractOrder $order, CartInterface $cart)
     {
         $voucherTokens = $cart->getVoucherTokenCodes();
         if (is_array($voucherTokens)) {
@@ -457,12 +469,12 @@ class OrderManager implements IOrderManager
     /**
      * hook to save individual data into order object
      *
-     * @param ICart $cart
+     * @param CartInterface $cart
      * @param AbstractOrder $order
      *
      * @return AbstractOrder
      */
-    protected function applyCustomCheckoutDataToOrder(ICart $cart, AbstractOrder $order)
+    protected function applyCustomCheckoutDataToOrder(CartInterface $cart, AbstractOrder $order)
     {
         return $order;
     }
@@ -517,17 +529,16 @@ class OrderManager implements IOrderManager
      * Get list of valid source orders to perform recurring payment on.
      *
      * @param string $customerId
-     * @param IPayment $paymentProvider
-     * @param null $paymentMethod
-     * @param null|int $limit
+     * @param PaymentInterface $paymentProvider
+     * @param string|null $paymentMethod
      * @param string $orderId
      *
      * @throws ProviderNotFoundException
      * @throws \Exception
      *
-     * @return false|\Pimcore\Model\DataObject\Listing\Concrete
+     * @return \Pimcore\Model\DataObject\Listing\Concrete
      */
-    public function getRecurringPaymentSourceOrderList(string $customerId, IPayment $paymentProvider, $paymentMethod = null, $orderId = '')
+    public function getRecurringPaymentSourceOrderList(string $customerId, PaymentInterface $paymentProvider, $paymentMethod = null, $orderId = '')
     {
         $orders = $this->buildOrderList();
         $orders->addConditionParam('customer__id = ?', $customerId);
@@ -556,12 +567,12 @@ class OrderManager implements IOrderManager
      * Get source order for performing recurring payment
      *
      * @param string $customerId
-     * @param IPayment $paymentProvider
+     * @param PaymentInterface $paymentProvider
      * @param null $paymentMethod
      *
      * @return mixed
      */
-    public function getRecurringPaymentSourceOrder(string $customerId, IPayment $paymentProvider, $paymentMethod = null)
+    public function getRecurringPaymentSourceOrder(string $customerId, PaymentInterface $paymentProvider, $paymentMethod = null)
     {
         if (!$paymentProvider->isRecurringPaymentEnabled()) {
             return null;
@@ -575,12 +586,12 @@ class OrderManager implements IOrderManager
 
     /**
      * @param AbstractOrder $order
-     * @param IPayment $payment
+     * @param PaymentInterface $payment
      * @param string $customerId
      *
      * @return bool
      */
-    public function isValidOrderForRecurringPayment(AbstractOrder $order, IPayment $payment, $customerId = '')
+    public function isValidOrderForRecurringPayment(AbstractOrder $order, PaymentInterface $payment, $customerId = '')
     {
         $orders = $this->getRecurringPaymentSourceOrderList($customerId, $payment, null, $order->getId());
 
@@ -603,7 +614,7 @@ class OrderManager implements IOrderManager
     }
 
     /**
-     * @param ICartItem $item
+     * @param CartItemInterface $item
      * @param $parent
      * @param bool $isGiftItem
      *
@@ -611,7 +622,7 @@ class OrderManager implements IOrderManager
      *
      * @throws \Exception
      */
-    protected function createOrderItem(ICartItem $item, $parent, $isGiftItem = false)
+    protected function createOrderItem(CartItemInterface $item, $parent, $isGiftItem = false)
     {
         $key = $this->buildOrderItemKey($item, $isGiftItem);
 
@@ -657,7 +668,7 @@ class OrderManager implements IOrderManager
         if (!$isGiftItem) {
             // save active pricing rules
             $priceInfo = $item->getPriceInfo();
-            if ($priceInfo instanceof IPriceInfo && method_exists($orderItem, 'setPricingRules')) {
+            if ($priceInfo instanceof PriceInfoInterface && method_exists($orderItem, 'setPricingRules')) {
                 $priceRules = new \Pimcore\Model\DataObject\Fieldcollection();
                 foreach ($priceInfo->getRules() as $rule) {
                     if ($rule->hasProductActions()) {
@@ -702,12 +713,12 @@ class OrderManager implements IOrderManager
     /**
      * Build order item key from cart item
      *
-     * @param ICartItem $item
+     * @param CartItemInterface $item
      * @param bool $isGiftItem
      *
      * @return string
      */
-    protected function buildOrderItemKey(ICartItem $item, bool $isGiftItem = false)
+    protected function buildOrderItemKey(CartItemInterface $item, bool $isGiftItem = false)
     {
         $key = File::getValidFilename(sprintf(
             '%s_%s%s',
@@ -796,11 +807,11 @@ class OrderManager implements IOrderManager
     }
 
     /**
-     * @param IStatus $paymentStatus
+     * @param StatusInterface $paymentStatus
      *
      * @return AbstractOrder
      */
-    public function getOrderByPaymentStatus(IStatus $paymentStatus)
+    public function getOrderByPaymentStatus(StatusInterface $paymentStatus)
     {
         //this call is needed in order to really load most updated object from cache or DB (otherwise it could be loaded from process)
         \Pimcore::collectGarbage();

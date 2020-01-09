@@ -93,6 +93,11 @@ pimcore.object.classes.data.data = Class.create({
             name: "unique",
             itemId: "unique",
             checked: this.datax.unique,
+            disabled: !in_array("unique",this.availableSettingsFields),
+            autoEl: {
+                tag: 'div',
+                'data-qtip': t('unique_qtip')
+            },
             hidden: true
         });
 
@@ -196,10 +201,8 @@ pimcore.object.classes.data.data = Class.create({
             });
 
             indexCheckbox.setHidden(false);
-            if (this.datax.hasOwnProperty("unique")) {
+            if (in_array("unique",this.availableSettingsFields)) {
                 uniqueCheckbox.setHidden(false);
-                Ext.QuickTips.init();
-                Ext.QuickTips.register({target:  uniqueCheckbox, text: t("unique")});
             }
         }
 
@@ -242,7 +245,7 @@ pimcore.object.classes.data.data = Class.create({
 
         this.layout = new Ext.Panel({
             title: '<b>' + this.datax.name + " (" + t("type") + ": " + niceName + ")</b>",
-            bodyStyle: 'border-top: 1px solid #606060 !important;',
+            bodyStyle: 'padding: 10px;',
             items: [
                 this.standardSettingsForm,
                 this.layoutSettingsForm,

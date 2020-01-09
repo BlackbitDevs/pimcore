@@ -101,7 +101,7 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
         this.fieldConfig.fieldtype = "panel";
 
         var wrapperConfig = {
-            border: false,
+            border: this.fieldConfig.border,
             layout: "fit"
         };
 
@@ -345,6 +345,10 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
                     panelConf.autoHeight = false;
                 }
 
+                if(this.fieldConfig.tabPosition) {
+                    panelConf.tabPosition = this.fieldConfig.tabPosition;
+                }
+
                 var hideLabels = this.hideLabels();
 
                 for (var i = 0; i < nrOfLanguages; i++) {
@@ -393,7 +397,6 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
                 wrapperConfig.items = [this.tabPanel];
             }
 
-            wrapperConfig.border = true;
             wrapperConfig.style = "margin-bottom: 10px";
             wrapperConfig.cls = "object_localizedfields_panel";
 
@@ -584,41 +587,6 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
         }
 
         return false;
-    },
-
-    isInvalidMandatory: function () {
-        // also check the referenced localized fields
-        if (this.referencedFields.length > 0) {
-            for (var r = 0; r < this.referencedFields.length; r++) {
-                if (this.referencedFields[r].isInvalidMandatory()) {
-                    return true;
-                }
-            }
-        }
-
-        var currentLanguage;
-        var isInvalid = false;
-        var invalidMandatoryFields = [];
-
-        for (var i = 0; i < this.frontendLanguages.length; i++) {
-            currentLanguage = this.frontendLanguages[i];
-
-            for (var s = 0; s < this.languageElements[currentLanguage].length; s++) {
-                if (this.languageElements[currentLanguage][s].isMandatory()) {
-                    if (this.languageElements[currentLanguage][s].isInvalidMandatory()) {
-                        invalidMandatoryFields.push(this.languageElements[currentLanguage][s].getTitle() + " - "
-                            + currentLanguage.toUpperCase() + " ("
-                            + this.languageElements[currentLanguage][s].getName() + ")");
-                        isInvalid = true;
-                    }
-                }
-            }
-        }
-
-        // return the error messages not bool, this is handled in object/edit.js
-        if (isInvalid) {
-            return invalidMandatoryFields;
-        }
     },
 
     removeInheritanceSourceButton: function () {

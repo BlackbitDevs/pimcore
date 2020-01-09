@@ -25,10 +25,8 @@ use Pimcore\Extension\Bundle\Config\StateConfig;
 use Pimcore\HttpKernel\BundleCollection\BundleCollection;
 use Pimcore\HttpKernel\BundleCollection\ItemInterface;
 use Pimcore\HttpKernel\BundleCollection\LazyLoadedItem;
-use Pimcore\HttpKernel\Config\SystemConfigParamResource;
 use Presta\SitemapBundle\PrestaSitemapBundle;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
-use Sensio\Bundle\DistributionBundle\SensioDistributionBundle;
 use Sensio\Bundle\FrameworkExtraBundle\SensioFrameworkExtraBundle;
 use Sensio\Bundle\GeneratorBundle\SensioGeneratorBundle;
 use Symfony\Bundle\DebugBundle\DebugBundle;
@@ -96,14 +94,15 @@ abstract class Kernel extends SymfonyKernel
      */
     public function registerContainerConfiguration(LoaderInterface $loader)
     {
-        $loader->load(function (ContainerBuilder $container) use ($loader) {
-            // add system.php as container resource and extract config values into params
-            $resource = new SystemConfigParamResource($container);
-            $resource->register();
-            $resource->setParameters();
-
+        $loader->load(function (ContainerBuilder $container) {
             $this->registerExtensionConfigFileResources($container);
         });
+
+        //load system configuration
+        $systemConfigFile = Config::locateConfigFile('system.yml');
+        if (file_exists($systemConfigFile)) {
+            $loader->load($systemConfigFile);
+        }
 
         $bundleConfigLocator = new BundleConfigLocator($this);
         foreach ($bundleConfigLocator->locate('config') as $bundleConfig) {
@@ -156,9 +155,6 @@ abstract class Kernel extends SymfonyKernel
 
         // handle system requirements
         $this->setSystemRequirements();
-
-        // force load config
-        \Pimcore::initConfiguration();
 
         // initialize extension manager config
         $this->extensionConfig = new Extension\Config();
@@ -284,27 +280,16 @@ abstract class Kernel extends SymfonyKernel
         if (in_array($this->getEnvironment(), $this->getEnvironmentsForDevBundles(), true)) {
             $collection->addBundles([
                 new DebugBundle(),
-                new WebProfilerBundle(),
-                new SensioDistributionBundle()
+                new WebProfilerBundle()
             ], 80);
 
-            // add generator bundle only if installed
-            if (class_exists('Sensio\Bundle\GeneratorBundle\SensioGeneratorBundle')) {
-                $generatorEnvironments = $this->getEnvironmentsForDevGeneratorBundles();
-
-                $collection->addBundle(
-                    new SensioGeneratorBundle(),
-                    80,
-                    $generatorEnvironments
-                );
-
-                // PimcoreGeneratorBundle depends on SensioGeneratorBundle
-                $collection->addBundle(
-                    new PimcoreGeneratorBundle(),
-                    60,
-                    $generatorEnvironments
-                );
-            }
+            // PimcoreGeneratorBundle depends on SensioGeneratorBundle
+            $generatorEnvironments = $this->getEnvironmentsForDevGeneratorBundles();
+            $collection->addBundle(
+                new PimcoreGeneratorBundle(),
+                60,
+                $generatorEnvironments
+            );
         }
     }
 
@@ -370,8 +355,6 @@ abstract class Kernel extends SymfonyKernel
             $maxExecutionTime = 0;
         }
 
-        error_reporting(E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED);
-
         //@ini_set("memory_limit", "1024M");
         @ini_set('max_execution_time', $maxExecutionTime);
         @set_time_limit($maxExecutionTime);
@@ -396,7 +379,7 @@ abstract class Kernel extends SymfonyKernel
         }
 
         // check some system variables
-        $requiredVersion = '7.1';
+        $requiredVersion = '7.2';
         if (version_compare(PHP_VERSION, $requiredVersion, '<')) {
             $m = "pimcore requires at least PHP version $requiredVersion your PHP version is: " . PHP_VERSION;
             Tool::exitWithError($m);

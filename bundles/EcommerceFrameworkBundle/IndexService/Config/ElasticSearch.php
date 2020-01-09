@@ -14,12 +14,13 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Config;
 
+use Pimcore\Bundle\EcommerceFrameworkBundle\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Config\Definition\Attribute;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\IRelationInterpreter;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\RelationInterpreterInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker\ElasticSearch\AbstractElasticSearch as DefaultElasticSearchWorker;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker\IWorker;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker\WorkerInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\DefaultMockup;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IIndexable;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IndexableInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Traits\OptionsResolverTrait;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -28,7 +29,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  *
  * @method DefaultElasticSearchWorker getTenantWorker()
  */
-class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSearchConfig
+class ElasticSearch extends AbstractConfig implements MockupConfigInterface, ElasticSearchConfigInterface
 {
     use OptionsResolverTrait;
 
@@ -67,16 +68,45 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
         'inProductList' => 'system.inProductList',
     ];
 
+    /**
+     * @var EnvironmentInterface
+     */
+    protected $environment;
+
     protected function addAttribute(Attribute $attribute)
     {
         parent::addAttribute($attribute);
 
         $attributeType = 'attributes';
-        if (null !== $attribute->getInterpreter() && $attribute->getInterpreter() instanceof IRelationInterpreter) {
+        if (null !== $attribute->getInterpreter() && $attribute->getInterpreter() instanceof RelationInterpreterInterface) {
             $attributeType = 'relations';
         }
 
         $this->fieldMapping[$attribute->getName()] = sprintf('%s.%s', $attributeType, $attribute->getName());
+    }
+
+    protected function addSearchAttribute(string $searchAttribute)
+    {
+        if (isset($this->attributes[$searchAttribute])) {
+            $this->searchAttributes[] = $searchAttribute;
+
+            return;
+        }
+
+        $fieldNameParts = $this->extractPossibleFirstSubFieldnameParts($searchAttribute);
+        foreach ($fieldNameParts as $fieldNamePart) {
+            if (isset($this->attributes[$fieldNamePart])) {
+                $this->searchAttributes[] = $searchAttribute;
+
+                return;
+            }
+        }
+
+        throw new \InvalidArgumentException(sprintf(
+            'The search attribute "%s" in product index tenant "%s" is not defined as attribute',
+            $searchAttribute,
+            $this->tenantName
+        ));
     }
 
     protected function processOptions(array $options)
@@ -113,19 +143,56 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
     }
 
     /**
+     * @param $fieldName
+     *
+     * @return array
+     */
+    protected function extractPossibleFirstSubFieldnameParts($fieldName)
+    {
+        $parts = [];
+
+        $delimiters = ['.', '^'];
+
+        foreach ($delimiters as $delimiter) {
+            if (strpos($fieldName, $delimiter) !== false) {
+                $fieldNameParts = explode($delimiter, $fieldName);
+                $parts[] = $fieldNameParts[0];
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
      * returns the full field name
      *
      * @param $fieldName
+     * @param $considerSubFieldNames - activate to consider subfield names like name.analyzed or score definitions like name^3
      *
      * @return string
      */
-    public function getFieldNameMapped($fieldName)
+    public function getFieldNameMapped($fieldName, $considerSubFieldNames = false)
     {
-        return $this->fieldMapping[$fieldName] ?: $fieldName;
+        if ($this->fieldMapping[$fieldName]) {
+            return $this->fieldMapping[$fieldName];
+        }
+
+        // consider subfield names like name.analyzed or score definitions like name^3
+        if ($considerSubFieldNames) {
+            $fieldNameParts = $this->extractPossibleFirstSubFieldnameParts($fieldName);
+            foreach ($fieldNameParts as $fieldNamePart) {
+                if ($this->fieldMapping[$fieldNamePart]) {
+                    return $this->fieldMapping[$fieldNamePart] . str_replace($fieldNamePart, '', $fieldName);
+                }
+            }
+        }
+
+        return $fieldName;
     }
 
     /**
      * returns short field name based on full field name
+     * also considers subfield names like name.analyzed etc.
      *
      * @param $fullFieldName
      *
@@ -133,7 +200,30 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
      */
     public function getReverseMappedFieldName($fullFieldName)
     {
-        return array_search($fullFieldName, $this->fieldMapping);
+        //check for direct match of field name
+        $fieldName = array_search($fullFieldName, $this->fieldMapping);
+        if ($fieldName) {
+            return $fieldName;
+        }
+
+        //search for part match in order to consider sub field names like name.analyzed
+        $fieldNamePart = $fullFieldName;
+        while (!empty($fieldNamePart)) {
+
+            // cut off part after last .
+            $fieldNamePart = substr($fieldNamePart, 0, strripos($fieldNamePart, '.'));
+
+            // search for mapping with field name part
+            $fieldName = array_search($fieldNamePart, $this->fieldMapping);
+
+            if ($fieldName) {
+                // append cut off part again to returned field name
+                return $fieldName . str_replace($fieldNamePart, '', $fullFieldName);
+            }
+        }
+
+        //return full field name if no mapping was found
+        return $fullFieldName;
     }
 
     /**
@@ -168,11 +258,11 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
     /**
      * checks, if product should be in index for current tenant
      *
-     * @param IIndexable $object
+     * @param IndexableInterface $object
      *
      * @return bool
      */
-    public function inIndex(IIndexable $object)
+    public function inIndex(IndexableInterface $object)
     {
         return true;
     }
@@ -180,14 +270,14 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
     /**
      * in case of subtenants returns a data structure containing all sub tenants
      *
-     * @param IIndexable $object
+     * @param IndexableInterface $object
      * @param null $subObjectId
      *
-     * @return mixed $subTenantData
+     * @return array $subTenantData
      */
-    public function prepareSubTenantEntries(IIndexable $object, $subObjectId = null)
+    public function prepareSubTenantEntries(IndexableInterface $object, $subObjectId = null)
     {
-        return null;
+        return [];
     }
 
     /**
@@ -212,13 +302,17 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
      */
     public function getSubTenantCondition()
     {
-        return;
+        if ($currentSubTenant = $this->environment->getCurrentAssortmentSubTenant()) {
+            return ['term' => ['subtenants.ids' => $currentSubTenant]];
+        }
+
+        return [];
     }
 
     /**
      * @inheritDoc
      */
-    public function setTenantWorker(IWorker $tenantWorker)
+    public function setTenantWorker(WorkerInterface $tenantWorker)
     {
         if (!$tenantWorker instanceof DefaultElasticSearchWorker) {
             throw new \InvalidArgumentException(sprintf(
@@ -250,10 +344,20 @@ class ElasticSearch extends AbstractConfig implements IMockupConfig, IElasticSea
      *
      * @param $objectId
      *
-     * @return IIndexable | array
+     * @return IndexableInterface | array
      */
     public function getObjectMockupById($objectId)
     {
         return $this->getTenantWorker()->getMockupFromCache($objectId);
+    }
+
+    /**
+     * @required
+     *
+     * @param EnvironmentInterface $environment
+     */
+    public function setEnvironment(EnvironmentInterface $environment)
+    {
+        $this->environment = $environment;
     }
 }

@@ -14,40 +14,40 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Action;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\ICartPriceModificator;
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\IShipping;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\IAction;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\ICondition;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\IEnvironment;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\CartPriceModificatorInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\ShippingInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\ActionInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\ConditionInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
 
-class FreeShipping implements IAction
+class FreeShipping implements ActionInterface
 {
     /**
-     * @param IEnvironment $environment
+     * @param EnvironmentInterface $environment
      *
-     * @return IAction
+     * @return ActionInterface
      */
-    public function executeOnProduct(IEnvironment $environment)
+    public function executeOnProduct(EnvironmentInterface $environment)
     {
         return $this;
     }
 
     /**
-     * @param IEnvironment $environment
+     * @param EnvironmentInterface $environment
      *
-     * @return IAction
+     * @return ActionInterface
      */
-    public function executeOnCart(IEnvironment $environment)
+    public function executeOnCart(EnvironmentInterface $environment)
     {
         $priceCalculator = $environment->getCart()->getPriceCalculator();
 
         $list = $priceCalculator->getModificators();
         foreach ($list as &$modificator) {
-            /* @var ICartPriceModificator $modificator_ */
+            /* @var CartPriceModificatorInterface $modificator_ */
 
             // remove shipping charge
-            if ($modificator instanceof IShipping) {
+            if ($modificator instanceof ShippingInterface) {
                 $modificator->setCharge(Decimal::zero());
                 $priceCalculator->calculate(true);
             }
@@ -69,7 +69,7 @@ class FreeShipping implements IAction
     /**
      * @param string $string
      *
-     * @return ICondition
+     * @return ConditionInterface
      */
     public function fromJSON($string)
     {

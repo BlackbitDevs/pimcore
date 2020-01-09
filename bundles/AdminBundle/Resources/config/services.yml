@@ -25,7 +25,8 @@ services:
     # API
     #
 
-    Pimcore\Model\Webservice\Service: ~
+    Pimcore\Model\Webservice\Service:
+        deprecated: ~
 
     #
     # Notification Services
@@ -33,7 +34,6 @@ services:
 
     Pimcore\Model\Notification\Service\NotificationService:
         public: true
-    Pimcore\Model\Notification\Service\NotificationServiceFilterParser: ~
     Pimcore\Model\Notification\Service\UserService: ~
 
     #

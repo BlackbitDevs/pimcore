@@ -14,8 +14,6 @@
 
 namespace Pimcore\Model;
 
-use Pimcore\Logger;
-
 /**
  * Class Workflow
  *
@@ -75,7 +73,7 @@ class Workflow extends AbstractModel
     /**
      * The default status of the element
      *
-     * @var
+     * @var string
      */
     public $defaultStatus;
 
@@ -125,11 +123,8 @@ class Workflow extends AbstractModel
             try {
                 $workflow = new self();
                 \Pimcore\Cache\Runtime::set($cacheKey, $workflow);
-                $workflow->setId(intval($id));
-                $workflow->getDao()->getById();
+                $workflow->getDao()->getById(intval($id));
             } catch (\Exception $e) {
-                Logger::error($e);
-
                 return null;
             }
         }
@@ -448,7 +443,7 @@ class Workflow extends AbstractModel
     }
 
     /**
-     * @return mixed
+     * @return string
      */
     public function getDefaultStatus()
     {
@@ -456,7 +451,7 @@ class Workflow extends AbstractModel
     }
 
     /**
-     * @param mixed $defaultStatus
+     * @param string $defaultStatus
      */
     public function setDefaultStatus($defaultStatus)
     {

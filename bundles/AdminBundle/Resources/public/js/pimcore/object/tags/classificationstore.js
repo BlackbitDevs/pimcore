@@ -97,6 +97,7 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
         this.fieldConfig.fieldtype = "panel";
 
         var wrapperConfig = {
+            bodyCls: "pimcore_object_tag_classification_store",
             border: true,
             style: "margin-bottom: 10px",
             layout: "fit"
@@ -130,6 +131,7 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
                                 parent: this,
                                 enableGroups: true,
                                 enableCollections: true,
+                                enableGroupByKey: true,
                                 storeId: storeId,
                                 object: this.object,
                                 fieldname: this.fieldConfig.name
@@ -270,13 +272,11 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
             }
         }
 
-
-        var container = {
+        return {
             "data" : localizedData,
             "activeGroups": activeGroups,
             "groupCollectionMapping" : this.groupCollectionMapping
         };
-        return container;
 
     },
 
@@ -370,40 +370,6 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
         return false;
     },
 
-    isInvalidMandatory: function () {
-        var isInvalid = false;
-        var invalidMandatoryFields = [];
-        var currentLanguage;
-
-        for (var i=0; i < this.frontendLanguages.length; i++) {
-
-            currentLanguage = this.frontendLanguages[i];
-
-            for (var s=0; s<this.languageElements[currentLanguage].length; s++) {
-                if(this.languageElements[currentLanguage][s].isMandatory()) {
-                    var languageElement = this.languageElements[currentLanguage][s];
-                    try {
-                        if (languageElement.isInvalidMandatory()) {
-                            invalidMandatoryFields.push(this.languageElements[currentLanguage][s].getTitle() + " - "
-                                + currentLanguage.toUpperCase() + " ("
-                                + this.languageElements[currentLanguage][s].getName() + ")");
-                            isInvalid = true;
-                        }
-                    } catch (e) {
-                        console.log(e);
-                    }
-                }
-            }
-        }
-
-        // return the error messages not bool, this is handled in object/edit.js
-        if(isInvalid) {
-            return invalidMandatoryFields;
-        }
-
-        return isInvalid;
-    },
-
     createGroupFieldset: function (language, group, groupedChildItems, isNew) {
         var groupId = group.id;
         var groupTitle = group.description ? group.name + " - " + group.description : group.name;
@@ -454,7 +420,7 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
         }
 
 
-        config = {
+        var config = {
             title: ts(groupTitle),
             items: groupedChildItems,
             collapsible: true
@@ -568,8 +534,7 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
 
             delete this.groupElements[currentLanguage][groupId];
 
-            for (j = this.languageElements[currentLanguage].length - 1; j >= 0; j--) {
-
+            for (var j = this.languageElements[currentLanguage].length - 1; j >= 0; j--) {
                 var element = this.languageElements[currentLanguage][j];
                 if (element.fieldConfig.csGroupId == groupId) {
                     this.languageElements[currentLanguage].splice(j, 1);
@@ -611,6 +576,7 @@ pimcore.object.tags.classificationstore = Class.create(pimcore.object.tags.abstr
                         continue;
                     }
 
+                    this.activeGroups[groupId] = true;
 
                     addedGroups[groupId] = true;
                     this.groupCollectionMapping[groupId] = group.collectionId;

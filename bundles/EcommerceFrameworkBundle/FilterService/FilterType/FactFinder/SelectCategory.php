@@ -14,32 +14,34 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\FactFinder;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\IProductList;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\ProductListInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinitionType;
 
 class SelectCategory extends \Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\SelectCategory
 {
     /**
      * @param AbstractFilterDefinitionType $filterDefinition
-     * @param IProductList                 $productList
+     * @param ProductListInterface                 $productList
      * @param array                                             $currentFilter
      * @param array                                             $params
      * @param bool                                              $isPrecondition
      *
      * @return mixed
      */
-    public function addCondition(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter, $params, $isPrecondition = false)
+    public function addCondition(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter, $params, $isPrecondition = false)
     {
 
         // init
         $field = $this->getField($filterDefinition);
         $preSelect = $this->getPreSelect($filterDefinition);
-        $value = $params[$field];
+        $value = $params[$field] ?? null;
+
+        $isReload = $params['is_reload'] ?? null;
 
         // set defaults
         //only works with Root categories!
 
-        if (empty($value) && !$params['is_reload']) {
+        if (empty($value) && !$isReload) {
             $value[] = $preSelect->getId();
         }
 
@@ -63,7 +65,7 @@ class SelectCategory extends \Pimcore\Bundle\EcommerceFrameworkBundle\FilterServ
         return $currentFilter;
     }
 
-    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter)
+    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter)
     {
         $rawValues = $productList->getGroupByValues('CategoryPath', true);
         $values = [];

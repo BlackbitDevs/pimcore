@@ -104,6 +104,8 @@ Since the only value can be found on level 1 for the default language the tree i
 // the value is of type "quantity value" where 1 is the unit ID in this example
 $heightValue = new \Pimcore\Model\DataObject\Data\QuantityValue(13, 1);
 $object->getClassificationStore2()->setLocalizedKeyValue(1, 2, $heightValue, "de");
+// 1 = group id
+$object->getClassificationStore2()->setActiveGroups([1 => true]);
   
 // provide additional information about which collection the group belongs to
 // group 1 belongs to collection with ID 2
@@ -136,24 +138,29 @@ $definition = new \Pimcore\Model\DataObject\ClassDefinition\Data\QuantityValue()
 $definition->setName("height");
 $definition->setTitle(Height);
 
-$config = new \Pimcore\Model\DataObject\Classificationstore\KeyConfig();
-$config->setName($name);
-$config->setDescription($description);
-$config->setEnabled(true);
-$config->setType($definition->getFieldtype());
-$config->setDefinition(json_encode($definition)); // The definition is used in object editor to render fields
-$config->save();  
+$keyConfig = new \Pimcore\Model\DataObject\Classificationstore\KeyConfig();
+$keyConfig->setName($name);
+$keyConfig->setDescription($description);
+$keyConfig->setEnabled(true);
+$keyConfig->setType($definition->getFieldtype());
+$keyConfig->setDefinition(json_encode($definition)); // The definition is used in object editor to render fields
+$keyConfig->save();  
   
 // Group
-$config = new \Pimcore\Model\DataObject\Classificationstore\GroupConfig();
-$config->setName($name);
-$config->setDescription($description);
-$config->save();
+$groupConfig = new \Pimcore\Model\DataObject\Classificationstore\GroupConfig();
+$groupConfig->setName($name);
+$groupConfig->setDescription($description);
+$groupConfig->save();
   
 // Collection
-$config = new \Pimcore\Model\DataObject\Classificationstore\CollectionConfig();
-$config->setName($name);
-$config->setDescription($description);
-$config->save();
+$collectionConfig = new \Pimcore\Model\DataObject\Classificationstore\CollectionConfig();
+$collectionConfig->setName($name);
+$collectionConfig->setDescription($description);
+$collectionConfig->save();
 ```
 
+// Add a group to a collection
+$rel = new CollectionGroupRelation();
+$rel->setGroupId($groupConfig->getId();
+$rel->setColId($collectionConfig->getId();
+$rel->save();

@@ -14,17 +14,17 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager;
 
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\Discount;
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\InvalidConfigException;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPriceInfo as PriceSystemIPriceInfo;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInfoInterface as PriceSystemPriceInfoInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Tools\SessionConfigurator;
 use Pimcore\Targeting\VisitorInfoStorageInterface;
 use Symfony\Component\HttpFoundation\Session\Attribute\AttributeBagInterface;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class PricingManager implements IPricingManager
+class PricingManager implements PricingManagerInterface
 {
     /**
      * @var bool
@@ -111,11 +111,11 @@ class PricingManager implements IPricingManager
     }
 
     /**
-     * @param PriceSystemIPriceInfo $priceInfo
+     * @param PriceSystemPriceInfoInterface $priceInfo
      *
-     * @return PriceSystemIPriceInfo
+     * @return PriceSystemPriceInfoInterface
      */
-    public function applyProductRules(PriceSystemIPriceInfo $priceInfo)
+    public function applyProductRules(PriceSystemPriceInfoInterface $priceInfo)
     {
         if (!$this->enabled) {
             return $priceInfo;
@@ -126,7 +126,7 @@ class PricingManager implements IPricingManager
 
         // add all valid rules to the price info
         foreach ($this->getValidRules() as $rule) {
-            /* @var IRule $rule */
+            /* @var RuleInterface $rule */
             $priceInfoWithRules->addRule($rule);
         }
 
@@ -134,20 +134,22 @@ class PricingManager implements IPricingManager
     }
 
     /**
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
-     * @return IPricingManager
+     * @return RuleInterface[]
      */
-    public function applyCartRules(ICart $cart)
+    public function applyCartRules(CartInterface $cart): array
     {
+        $appliedRules = [];
+
         if (!$this->enabled) {
-            return $this;
+            return $appliedRules;
         }
 
         // configure environment
         $env = $this->getEnvironment();
         $env->setCart($cart);
-        $env->setExecutionMode(IEnvironment::EXECUTION_MODE_CART);
+        $env->setExecutionMode(EnvironmentInterface::EXECUTION_MODE_CART);
         $env->setProduct(null);
         if ($this->visitorInfoStorage && $this->visitorInfoStorage->hasVisitorInfo()) {
             $env->setVisitorInfo($this->visitorInfoStorage->getVisitorInfo());
@@ -190,6 +192,7 @@ class PricingManager implements IPricingManager
 
             // execute rule
             $rule->executeOnCart($env);
+            $appliedRules[] = $rule;
 
             // is this a stop rule?
             if ($rule->getBehavior() === 'stopExecute') {
@@ -197,15 +200,15 @@ class PricingManager implements IPricingManager
             }
         }
 
-        return $this;
+        return $appliedRules;
     }
 
     /**
-     * @return IRule[]
+     * @return RuleInterface[]
      */
     public function getValidRules()
     {
-        if (empty($this->rules)) {
+        if (is_null($this->rules)) {
             /** @var Rule\Listing $rules */
             $rules = $this->getRuleListing();
             $rules->setCondition('active = 1');
@@ -219,7 +222,7 @@ class PricingManager implements IPricingManager
     }
 
     /**
-     * @return IEnvironment
+     * @return EnvironmentInterface
      */
     public function getEnvironment()
     {
@@ -228,23 +231,11 @@ class PricingManager implements IPricingManager
 
         $class = $this->options['environment_class'];
 
-        /** @var IEnvironment $environment */
+        /** @var EnvironmentInterface $environment */
         $environment = new $class();
         $environment->setSession($sessionBag);
 
         return $environment;
-    }
-
-    /**
-     * @deprecated as it is never used. Will be removed in Pimcore 6.
-     *
-     * @return IRule
-     */
-    public function getRule()
-    {
-        $class = $this->options['rule_class'];
-
-        return new $class();
     }
 
     /**
@@ -278,14 +269,14 @@ class PricingManager implements IPricingManager
      *
      * @param string $type
      *
-     * @return ICondition
+     * @return ConditionInterface
      *
      * @throws InvalidConfigException
      */
     public function getCondition($type)
     {
         if (!isset($this->conditionMapping[$type])) {
-            throw new InvalidConfigException(sprintf('ICondition for type "%s" is not registered', $type));
+            throw new InvalidConfigException(sprintf('ConditionInterface for type "%s" is not registered', $type));
         }
 
         $class = $this->conditionMapping[$type];
@@ -298,14 +289,14 @@ class PricingManager implements IPricingManager
      *
      * @param string $type
      *
-     * @return IAction
+     * @return ActionInterface
      *
      * @throws InvalidConfigException
      */
     public function getAction($type)
     {
         if (!isset($this->actionMapping[$type])) {
-            throw new InvalidConfigException(sprintf('IAction for type "%s" is not registered', $type));
+            throw new InvalidConfigException(sprintf('ActionInterface for type "%s" is not registered', $type));
         }
 
         $class = $this->actionMapping[$type];
@@ -314,13 +305,13 @@ class PricingManager implements IPricingManager
     }
 
     /**
-     * @param PriceSystemIPriceInfo $priceInfo
+     * @param PriceSystemPriceInfoInterface $priceInfo
      *
-     * @return IPriceInfo
+     * @return PriceInfoInterface
      *
      * @throws InvalidConfigException
      */
-    public function getPriceInfo(PriceSystemIPriceInfo $priceInfo)
+    public function getPriceInfo(PriceSystemPriceInfoInterface $priceInfo)
     {
         // TODO make getPriceInfo private as this call is only used internally where the enabled check is alread applied?
         if (!$this->enabled) {

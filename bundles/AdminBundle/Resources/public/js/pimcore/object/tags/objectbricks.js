@@ -66,7 +66,7 @@ pimcore.object.tags.objectbricks = Class.create(pimcore.object.tags.abstract, {
 
         panelConf = {
             autoHeight: true,
-            border: true,
+            border: this.fieldConfig.border,
             style: "margin-bottom: 10px",
             componentCls: "object_field",
             items: [this.tabpanel]
@@ -266,6 +266,7 @@ pimcore.object.tags.objectbricks = Class.create(pimcore.object.tags.abstract, {
             var blockElement = new Ext.Panel({
                 //bodyStyle: "padding:10px;",
                 style: "margin: 0 0 10px 0;",
+                cls: 'pimcore_objectbrick_item',
                 closable: !this.fieldConfig.noteditable,
                 autoHeight: true,
                 border: false,
@@ -475,38 +476,6 @@ pimcore.object.tags.objectbricks = Class.create(pimcore.object.tags.abstract, {
             }
 
             return false;
-        }
-    ,
-
-        isInvalidMandatory: function () {
-            var element;
-            var isInvalid = false;
-            var invalidMandatoryFields = [];
-
-            var types = Object.keys(this.currentElements);
-            for (var t = 0; t < types.length; t++) {
-                if (this.currentElements[types[t]]) {
-                    element = this.currentElements[types[t]];
-                    if (element.action != "deleted") {
-                        for (var u = 0; u < element.fields.length; u++) {
-                            if (element.fields[u].isMandatory()) {
-                                if (element.fields[u].isInvalidMandatory()) {
-                                    invalidMandatoryFields.push(element.fields[u].getTitle()
-                                        + " (" + element.fields[u].getName() + "|" + types[t] + ")");
-                                    isInvalid = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // return the error messages not bool, this is handled in object/edit.js
-            if (isInvalid) {
-                return invalidMandatoryFields;
-            }
-
-            return isInvalid;
         }
 
     });

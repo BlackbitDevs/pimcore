@@ -22,22 +22,27 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\Element\Recyclebin\Item\Listing\Dao getDao()
  * @method Model\Element\Recyclebin\Item[] load()
+ * @method Model\Element\Recyclebin\Item current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list. They are all an instance of Staticroute
-     *
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $items = [];
+    protected $items = null;
+
+    public function __construct()
+    {
+        $this->items =& $this->data;
+    }
 
     /**
-     * @return array
+     * @return Model\Element\Recyclebin\Item[]
      */
     public function getItems()
     {
-        return $this->items;
+        return $this->getData();
     }
 
     /**
@@ -47,8 +52,6 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setItems($items)
     {
-        $this->items = $items;
-
-        return $this;
+        return $this->setData($items);
     }
 }

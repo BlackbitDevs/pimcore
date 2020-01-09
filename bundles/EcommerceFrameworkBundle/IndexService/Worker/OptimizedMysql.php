@@ -15,16 +15,17 @@
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker;
 
 use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Config\OptimizedMysql as OptimizedMysqlConfig;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IIndexable;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IndexableInterface;
 use Pimcore\Db\ConnectionInterface;
 use Pimcore\Logger;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @method OptimizedMysqlConfig getTenantConfig()
  *
  * @property OptimizedMysqlConfig $tenantConfig
  */
-class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessingWorker
+class OptimizedMysql extends AbstractMockupCacheWorker implements BatchProcessingWorkerInterface
 {
     const STORE_TABLE_NAME = 'ecommerceframework_productindex_store';
     const MOCKUP_CACHE_PREFIX = 'ecommerce_mockup';
@@ -34,9 +35,9 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
      */
     protected $mySqlHelper;
 
-    public function __construct(OptimizedMysqlConfig $tenantConfig, ConnectionInterface $db)
+    public function __construct(OptimizedMysqlConfig $tenantConfig, ConnectionInterface $db, EventDispatcherInterface $eventDispatcher)
     {
-        parent::__construct($tenantConfig, $db);
+        parent::__construct($tenantConfig, $db, $eventDispatcher);
 
         $this->mySqlHelper = new Helper\MySql($tenantConfig, $db);
     }
@@ -47,7 +48,7 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
         $this->createOrUpdateStoreTable();
     }
 
-    public function deleteFromIndex(IIndexable $object)
+    public function deleteFromIndex(IndexableInterface $object)
     {
         if (!$this->tenantConfig->isActive($object)) {
             Logger::info("Tenant {$this->name} is not active.");
@@ -64,7 +65,7 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
         $this->doCleanupOldZombieData($object, $subObjectIds);
     }
 
-    protected function doDeleteFromIndex($objectId, IIndexable $object = null)
+    protected function doDeleteFromIndex($objectId, IndexableInterface $object = null)
     {
         try {
             $this->db->beginTransaction();
@@ -83,7 +84,7 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
         }
     }
 
-    public function updateIndex(IIndexable $object)
+    public function updateIndex(IndexableInterface $object)
     {
         if (!$this->tenantConfig->isActive($object)) {
             Logger::info("Tenant {$this->name} is not active.");
@@ -91,15 +92,16 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
             return;
         }
 
-        $this->prepareDataForIndex($object);
+        $subObjectIds = $this->prepareDataForIndex($object);
 
         //updates data for all subentries
-        $subObjectIds = $this->tenantConfig->createSubIdsForObject($object);
         foreach ($subObjectIds as $subObjectId => $object) {
             $this->doUpdateIndex($subObjectId);
         }
 
-        $this->fillupPreparationQueue($object);
+        if (count($subObjectIds) > 0) {
+            $this->fillupPreparationQueue($object);
+        }
     }
 
     /**
@@ -107,8 +109,9 @@ class OptimizedMysql extends AbstractMockupCacheWorker implements IBatchProcessi
      *
      * @param $objectId
      * @param null $data
+     * @param null $metadata
      */
-    public function doUpdateIndex($objectId, $data = null)
+    public function doUpdateIndex($objectId, $data = null, $metadata = null)
     {
         if (empty($data)) {
             $data = $this->db->fetchOne('SELECT data FROM ' . self::STORE_TABLE_NAME . ' WHERE o_id = ? AND tenant = ?', [$objectId, $this->name]);

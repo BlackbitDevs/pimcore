@@ -24,7 +24,6 @@ use Pimcore\Model\Notification\Service\NotificationServiceFilterParser;
 use Pimcore\Model\Notification\Service\UserService;
 use Pimcore\Model\User;
 use Pimcore\Translation\Translator;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
@@ -38,8 +37,7 @@ class NotificationController extends AdminController
      * @param Translator $translator
      *
      * @return JsonResponse
-     * @Route("/recipients")
-     * @Method({"GET"})
+     * @Route("/recipients", methods={"GET"})
      */
     public function recipientsAction(UserService $service, Translator $translator): JsonResponse
     {
@@ -65,8 +63,7 @@ class NotificationController extends AdminController
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/send")
-     * @Method({"POST"})
+     * @Route("/send", methods={"POST"})
      */
     public function sendAction(Request $request, NotificationService $service): JsonResponse
     {
@@ -161,8 +158,8 @@ class NotificationController extends AdminController
         $this->checkPermission('notifications');
 
         $user = $this->getAdminUser();
-        $interval = (int) $request->get('interval', 10);
-        $result = $service->findLastUnread((int) $user->getId(), $interval);
+        $lastUpdate = (int) $request->get('lastUpdate', time());
+        $result = $service->findLastUnread((int) $user->getId(), $lastUpdate);
         $unread = $service->countAllUnread((int) $user->getId());
 
         $data = [];

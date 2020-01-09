@@ -120,10 +120,6 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                             }
                             pimcore.plugin.broker.fireEvent("postSaveDocument", this, this.getType(), task, only);
                         }
-                        else {
-                            pimcore.helpers.showPrettyError(rdata.type, t("error"), t("saving_failed"),
-                                rdata.message, rdata.stack, rdata.code);
-                        }
                     } catch (e) {
                         pimcore.helpers.showNotification(t("error"), t("saving_failed"), "error");
                     }
@@ -261,7 +257,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                         win.getComponent("language").show();
                         win.getComponent("info").hide();
                     } else {
-                        win.getComponent("language").hide();
+                        win.getComponent("language").setValue("").hide();
                         win.getComponent("info").show();
                     }
                 }
@@ -328,7 +324,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
             }],
             buttons: [{
                 text: t("cancel"),
-                iconCls: "pimcore_icon_delete",
+                iconCls: "pimcore_icon_cancel",
                 handler: function () {
                     win.close();
                 }
@@ -336,6 +332,10 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                 text: t("apply"),
                 iconCls: "pimcore_icon_apply",
                 handler: function () {
+                    if(!win.getComponent("translation").getValue() || !win.getComponent("language").getValue()) {
+                        Ext.MessageBox.alert(t("error"), t("target_document_invalid"));
+                        return false;
+                    }
 
                     Ext.Ajax.request({
                         url: "/admin/document/translation-add",
@@ -477,7 +477,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
             items: [pageForm],
             buttons: [{
                 text: t("cancel"),
-                iconCls: "pimcore_icon_delete",
+                iconCls: "pimcore_icon_cancel",
                 handler: function () {
                     win.close();
                 }
@@ -587,7 +587,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
 
         return {
             tooltip: t("translation"),
-            iconCls: "pimcore_icon_translations",
+            iconCls: "pimcore_material_icon_translation pimcore_material_icon",
             scale: "medium",
             menu: [{
                 text: t("new_document"),

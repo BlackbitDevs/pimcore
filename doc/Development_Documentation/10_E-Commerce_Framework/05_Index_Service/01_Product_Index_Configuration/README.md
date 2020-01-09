@@ -108,14 +108,14 @@ options are available:
 - `getter_id` (optional): Service ID of a special getter implementation for getting attribute value. Per default, the
    method `get<NAME>()` of the product object is called. If this is not suitable, an alternative getter class can be defined
    which is responsible for getting the value. This can be used for calculations, getting complex values (field collections,
-   object bricks), etc. Getter implementations need to implement `\Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Getter\IGetter`
+   object bricks), etc. Getter implementations need to implement `\Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Getter\GetterInterface`
    interface and be defined as service. Best practice is to use the fully qualified class name as service ID and to reference
    the class name in the configuration.
 - `getter_options` (optional): options passed to the getter when resolving a value. Available options vary by getter implementation.
 - `interpreter_id` (optional): By default all data is stored without any transformation in the Product Index. With an 
    interpreter, this data can be transformed and manipulated before storing. This can be used for only saving IDs 
    of assets, normalization of data, special treatment of relations, etc. Interpreter implementations need to implement
-   `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\Interpreter` interface. The same service ID best practices
+   `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\InterpreterInterface` interface. The same service ID best practices
    as for getters apply to interpreters.
 - `interpreter_options` (optional): options passed to the interpreter. Available options vary by interpreter implementation.
 - `hide_in_fieldlist_datatype` (optional): Hides column in FieldList drop down (see [FilterService](../../07_Filter_Service/README.md) 
@@ -128,7 +128,7 @@ Relations are stored in a special way in *Product Index* and also need to be fil
 [Product List](../07_Product_List.md).
  
 In order to store relations correctly in the Product Index, relation attributes must have an interpreter defined which 
-implements the interface `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\IRelationInterpreter`. 
+implements the interface `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\RelationInterpreterInterface`. 
 
 
 #### Selection of available Getters:
@@ -143,7 +143,11 @@ implements the interface `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\I
   `DefaultBrickGetterSequence`, but stores all found values as a multi select in the *Product Index*. 
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Getter\TagsGetter`: Gets [Tags](../../../18_Tools_and_Features/09_Tags.md) 
   of product object and returns them as array. 
-
+- `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Getter\DefaultClassificationAttributeGetter`: Gets attribute value
+  from classification store. Possible options: 
+   - `key_id` - id of the classification store attribute
+   - `group_id` - id of the group related to the id | key can occur multiple times in classification store field through multiple groups
+   - `fieldname` - name of the field upon which the classification store is saved on the specific object (defaults to attributes)
 
 #### Selection of available Interpreters:
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\AssetId`: Stores only asset id into *Product Index*.
@@ -159,6 +163,8 @@ implements the interface `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\I
  If configuration option `multiSelectEncoded` is set, it returns id list encoded as multi select (relevant for filtering 
  in Product List). 
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\Numeric`: Returns `floatval` of given value. 
+- `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\QuantityValue`: Interprets quantity value data types, 
+  by default by serializing it to string, when config option `onlyValue` set to `true`, it returns only value 
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\ObjectId`: Returns id of given object. 
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\ObjectIdSum`: Calculates sum if ids of given objects. 
 Could be used for similarity calculation. 
@@ -169,6 +175,10 @@ Expects following configuration options:
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\Round`: Rounds given value to integer.
 - `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\Soundex`: Returns soundex of given value. Could be used 
 for similarity calculation.
+- `Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Interpreter\DefaultClassificationStore`: Stores all classification
+  store attributes of a data object to the index. Only usable in combination with elastic search. 
+  See [Filter Classification Store](../../07_Filter_Service/03_Elastic_Search/01_Filter_Classification_Store.md) 
+  for details. 
 
 > Depending on the *Product Index* implementation, the *Product Index* configuration can be slightly different. 
 > See sample configurations for specific *Product Iindex* implementations.

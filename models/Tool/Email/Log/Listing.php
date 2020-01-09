@@ -22,24 +22,27 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\Tool\Email\Log\Listing\Dao getDao()
  * @method Model\Tool\Email\Log[] load()
+ * @method Model\Tool\Email\Log current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list. They are all an instance of Document\Email
-     *
      * @var array
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $emailLogs = [];
+    protected $emailLogs = null;
+
+    public function __construct()
+    {
+        $this->emailLogs =& $this->data;
+    }
 
     /**
-     * Returns a list of EmailLog entries
-     *
-     * @return array
+     * @return Model\Tool\Email\Log[]
      */
     public function getEmailLogs()
     {
-        return $this->emailLogs;
+        return $this->getData();
     }
 
     /**
@@ -51,8 +54,6 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setEmailLogs($emailLogs)
     {
-        $this->emailLogs = $emailLogs;
-
-        return $this;
+        return $this->setData($emailLogs);
     }
 }

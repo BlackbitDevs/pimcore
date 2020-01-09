@@ -48,7 +48,8 @@ class Installer extends MigrationInstaller
               `name` varchar(250) COLLATE utf8_bin DEFAULT NULL,
               `creationDateTimestamp` int(10) NOT NULL,
               `modificationDateTimestamp` int(10) NOT NULL,
-              PRIMARY KEY (`id`)
+              PRIMARY KEY (`id`),
+              KEY `ecommerceframework_cart_userid_index` (`userid`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;',
         'ecommerceframework_cartcheckoutdata' =>
             'CREATE TABLE IF NOT EXISTS `ecommerceframework_cartcheckoutdata` (
@@ -67,7 +68,8 @@ class Installer extends MigrationInstaller
               `comment` LONGTEXT ASCII,
               `addedDateTimestamp` int(10) NOT NULL,
               `sortIndex` INT(10) UNSIGNED NULL DEFAULT '0',
-              PRIMARY KEY (`itemKey`,`cartId`,`parentItemKey`)
+              PRIMARY KEY (`itemKey`,`cartId`,`parentItemKey`),
+              KEY `cartId_parentItemKey` (`cartId`,`parentItemKey`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;",
         'ecommerceframework_vouchertoolkit_statistics' =>
             "CREATE TABLE IF NOT EXISTS `ecommerceframework_vouchertoolkit_statistics` (
@@ -246,9 +248,7 @@ class Installer extends MigrationInstaller
         );
 
         foreach ($fieldCollections as $key => $path) {
-            try {
-                $fieldCollection = Fieldcollection\Definition::getByKey($key);
-
+            if ($fieldCollection = Fieldcollection\Definition::getByKey($key)) {
                 if ($fieldCollection) {
                     $this->outputWriter->write(sprintf(
                         '     <comment>WARNING:</comment> Skipping field collection "%s" as it already exists',
@@ -257,7 +257,7 @@ class Installer extends MigrationInstaller
 
                     continue;
                 }
-            } catch (\Exception $e) {
+            } else {
                 $fieldCollection = new Fieldcollection\Definition();
                 $fieldCollection->setKey($key);
             }
@@ -282,18 +282,14 @@ class Installer extends MigrationInstaller
         );
 
         foreach ($bricks as $key => $path) {
-            try {
-                $brick = Objectbrick\Definition::getByKey($key);
+            if ($brick = Objectbrick\Definition::getByKey($key)) {
+                $this->outputWriter->write(sprintf(
+                    '     <comment>WARNING:</comment> Skipping object brick "%s" as it already exists',
+                    $key
+                ));
 
-                if ($brick) {
-                    $this->outputWriter->write(sprintf(
-                        '     <comment>WARNING:</comment> Skipping object brick "%s" as it already exists',
-                        $key
-                    ));
-
-                    continue;
-                }
-            } catch (\Exception $e) {
+                continue;
+            } else {
                 $brick = new Objectbrick\Definition();
                 $brick->setKey($key);
             }
@@ -328,8 +324,8 @@ class Installer extends MigrationInstaller
                 Permission\Definition::create($permission);
             } catch (\Throwable $e) {
                 throw new AbortMigrationException(sprintf(
-                    'Failed to create permission "%s"',
-                    $permission
+                    'Failed to create permission "%s": %s',
+                    $permission, $e->getMessage()
                 ));
             }
         }

@@ -115,16 +115,17 @@ class Textarea extends Model\Document\Tag
     }
 
     /**
+     * @deprecated
      * @param Model\Webservice\Data\Document\Element $wsElement
      * @param $document
      * @param mixed $params
-     * @param null $idMapper
+     * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
      * @throws \Exception
      */
     public function getFromWebserviceImport($wsElement, $document = null, $params = [], $idMapper = null)
     {
-        $data = $wsElement->value;
+        $data = $this->sanitizeWebserviceData($wsElement->value);
         if ($data->text === null or is_string($data->text)) {
             $this->text = $data->text;
         } else {

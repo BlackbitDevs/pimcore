@@ -15,7 +15,7 @@
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\Controller;
 
 use Pimcore\Bundle\AdminBundle\Security\User\TokenStorageUserResolver;
-use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\TokenManager\IExportableTokenManager;
+use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\TokenManager\ExportableTokenManagerInterface;
 use Pimcore\Controller\FrontendController;
 use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\DataObject\Localizedfield;
@@ -50,7 +50,7 @@ class VoucherController extends FrontendController
         Localizedfield::setGetFallbackValues(true);
 
         // enable view auto-rendering
-        $this->setViewAutoRender($event->getRequest(), true, 'php');
+        $this->setViewAutoRender($event->getRequest(), true, 'twig');
     }
 
     /**
@@ -69,8 +69,9 @@ class VoucherController extends FrontendController
         $paramsBag = [];
         if ($tokenManager = $onlineShopVoucherSeries->getTokenManager()) {
             $paramsBag['series'] = $onlineShopVoucherSeries;
+            $paramsBag['voucherType'] = $tokenManager->getConfiguration()->getType();
 
-            if ($tokenManager instanceof IExportableTokenManager) {
+            if ($tokenManager instanceof ExportableTokenManagerInterface) {
                 $paramsBag['supportsExport'] = true;
             }
 
@@ -80,12 +81,12 @@ class VoucherController extends FrontendController
         } else {
             $paramsBag['errors'] = ['bundle_ecommerce_voucherservice_msg-error-config-missing'];
 
-            return $this->render('PimcoreEcommerceFrameworkBundle:Voucher:voucherCodeTabError.html.php', $paramsBag);
+            return $this->render('PimcoreEcommerceFrameworkBundle:voucher:voucherCodeTabError.html.twig', $paramsBag);
         }
     }
 
     /**
-     * Export tokens to file. The action should implement all export formats defined in IExportableTokenManager.
+     * Export tokens to file. The action should implement all export formats defined in ExportableTokenManagerInterface.
      *
      * @Route("/export-tokens", name="pimcore_ecommerce_backend_voucher_export-tokens", methods={"GET"})
      */
@@ -98,23 +99,23 @@ class VoucherController extends FrontendController
 
         /** @var \Pimcore\Model\DataObject\OnlineShopVoucherSeries $onlineShopVoucherSeries */
         $tokenManager = $onlineShopVoucherSeries->getTokenManager();
-        if (!(null !== $tokenManager && $tokenManager instanceof IExportableTokenManager)) {
+        if (!(null !== $tokenManager && $tokenManager instanceof ExportableTokenManagerInterface)) {
             throw new \InvalidArgumentException('Token manager does not support exporting');
         }
 
-        $format = $request->get('format', IExportableTokenManager::FORMAT_CSV);
+        $format = $request->get('format', ExportableTokenManagerInterface::FORMAT_CSV);
         $contentType = null;
         $suffix = null;
         $download = true;
 
         switch ($format) {
-            case IExportableTokenManager::FORMAT_CSV:
+            case ExportableTokenManagerInterface::FORMAT_CSV:
                 $result = $tokenManager->exportCsv($request->query->all());
                 $contentType = 'text/csv';
                 $suffix = 'csv';
                 break;
 
-            case IExportableTokenManager::FORMAT_PLAIN:
+            case ExportableTokenManagerInterface::FORMAT_PLAIN:
                 $result = $tokenManager->exportPlain($request->query->all());
                 $contentType = 'text/plain';
                 $suffix = 'txt';

@@ -396,50 +396,9 @@ class Log extends Model\AbstractModel
         $this->getDao()->delete();
     }
 
-    /**
-     * Sets the creation date (unix timestamp)
-     *
-     * @param int $creationDate
-     *
-     * @return $this
-     *
-     * @todo: creationDate not found in class
-     */
-    public function setCreationDate($creationDate)
-    {
-        $this->creationDate = $creationDate;
-
-        return $this;
-    }
-
-    /**
-     * Returns the creation date as unix timestamp
-     *
-     * @return int
-     */
-    public function getCreationDate()
-    {
-        return $this->creationDate;
-    }
-
-    /**
-     * Saves the email log entry (forwards to $this->update())
-     */
     public function save()
     {
-        // set date
-        if (!(int)$this->getId()) {
-            $this->getDao()->create();
-        }
-        $this->update();
-    }
-
-    /**
-     * Updates and save the email log entry to the db and the file-system
-     */
-    protected function update()
-    {
-        $this->getDao()->update();
+        $this->getDao()->save();
         if (!is_dir(PIMCORE_LOG_MAIL_PERMANENT)) {
             File::mkdir(PIMCORE_LOG_MAIL_PERMANENT);
         }
@@ -480,18 +439,6 @@ class Log extends Model\AbstractModel
     }
 
     /**
-     * Returns the "to" recipients as array
-     *
-     * @deprecated directly use \Pimcore\Helper\Mail::parseEmailAddressField instead
-     *
-     * @return array
-     */
-    public function getToAsArray()
-    {
-        return \Pimcore\Helper\Mail::parseEmailAddressField($this->getTo());
-    }
-
-    /**
      * @param $cc
      *
      * @return $this
@@ -514,18 +461,6 @@ class Log extends Model\AbstractModel
     }
 
     /**
-     * Returns the carbon copy recipients as array
-     *
-     * @deprecated directly use \Pimcore\Helper\Mail::parseEmailAddressField instead
-     *
-     * @return array
-     */
-    public function getCcAsArray()
-    {
-        return \Pimcore\Helper\Mail::parseEmailAddressField($this->getCc());
-    }
-
-    /**
      * @param $bcc
      *
      * @return $this
@@ -545,18 +480,6 @@ class Log extends Model\AbstractModel
     public function getBcc()
     {
         return $this->bcc;
-    }
-
-    /**
-     * Returns the blind carbon copy recipients as array
-     *
-     * @deprecated directly use \Pimcore\Helper\Mail::parseEmailAddressField instead
-     *
-     * @return array
-     */
-    public function getBccAsArray()
-    {
-        return \Pimcore\Helper\Mail::parseEmailAddressField($this->getBcc());
     }
 
     /**
@@ -601,18 +524,6 @@ class Log extends Model\AbstractModel
     public function getReplyTo()
     {
         return $this->replyTo;
-    }
-
-    /**
-     * Returns the "replyTo" email addresses as array
-     *
-     * @deprecated directly use \Pimcore\Helper\Mail::parseEmailAddressField instead
-     *
-     * @return array
-     */
-    public function getReplyToAsArray()
-    {
-        return \Pimcore\Helper\Mail::parseEmailAddressField($this->getReplyTo());
     }
 
     /**

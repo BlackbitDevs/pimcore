@@ -104,10 +104,10 @@ pimcore.document.edit = Class.create({
                 html: html,
                 title: t('edit'),
                 scrollable: false,
-                bodyCls: "pimcore_overflow_scrolling",
+                bodyCls: "pimcore_overflow_scrolling pimcore_document_edit_panel",
                 forceLayout: true,
                 hideMode: "offsets",
-                iconCls: "pimcore_icon_edit",
+                iconCls: "pimcore_material_icon_edit pimcore_material_icon",
                 lbar: lbar
             };
 
@@ -119,9 +119,7 @@ pimcore.document.edit = Class.create({
             this.layout.on("resize", this.setLayoutFrameDimensions.bind(this));
 
             this.layout.on("afterrender", function () {
-
-                // unfortunately we have to do this in jQuery, because Ext doesn'T offer this functionality
-                jQuery("#" + this.iframeName).on("load", function () {
+                Ext.get(this.iframeName).on('load', function() {
                     // this is to hide the mask if edit/startup.js isn't executed (eg. in case an error is shown)
                     // otherwise edit/startup.js will disable the loading mask
                     if(!this["frame"]) {

@@ -37,7 +37,7 @@ class Printcontainer extends Document\PrintAbstract
     protected $action = 'container';
 
     /**
-     * @var
+     * @var array
      */
     private $allChildren = [];
 
@@ -48,7 +48,7 @@ class Printcontainer extends Document\PrintAbstract
     {
         $tmpDocument = [];
         $tmpDocument['leaf'] = false;
-        $tmpDocument['expanded'] = $this->hasNoChilds();
+        $tmpDocument['expanded'] = !$this->hasChildren();
         $tmpDocument['iconCls'] = 'pimcore_icon_printcontainer';
         $tmpDocument['permissions'] = [
             'view' => $this->isAllowed('view'),
@@ -105,7 +105,7 @@ class Printcontainer extends Document\PrintAbstract
     {
         $dirty = parent::pdfIsDirty();
         if (!$dirty) {
-            $dirty = ($this->getLastGenerated() < $this->getLastedChildModificationDate());
+            $dirty = ($this->getLastGenerated() < $this->getDao()->getLastedChildModificationDate());
         }
 
         return $dirty;

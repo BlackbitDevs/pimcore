@@ -118,6 +118,11 @@ class ClassDefinition extends Model\AbstractModel
     public $showVariants = false;
 
     /**
+     * @var bool
+     */
+    public $cacheRawRelationData = false;
+
+    /**
      * @var array
      */
     public $fieldDefinitions = [];
@@ -175,7 +180,7 @@ class ClassDefinition extends Model\AbstractModel
     /**
      * @param $id
      *
-     * @return mixed|null|ClassDefinition
+     * @return null|ClassDefinition
      *
      * @throws \Exception
      */
@@ -219,7 +224,7 @@ class ClassDefinition extends Model\AbstractModel
     /**
      * @param string $name
      *
-     * @return self
+     * @return self|null
      */
     public static function getByName($name)
     {
@@ -228,12 +233,8 @@ class ClassDefinition extends Model\AbstractModel
             $id = $class->getDao()->getIdByName($name);
             if ($id) {
                 return self::getById($id);
-            } else {
-                throw new \Exception('There is no class with the name: ' . $name);
             }
         } catch (\Exception $e) {
-            Logger::error($e);
-
             return null;
         }
     }
@@ -257,7 +258,7 @@ class ClassDefinition extends Model\AbstractModel
     public function rename($name)
     {
         $this->deletePhpClasses();
-        $this->updateClassNameInObjects($name);
+        $this->getDao()->updateClassNameInObjects($name);
 
         $this->setName($name);
         $this->save();
@@ -305,6 +306,22 @@ class ClassDefinition extends Model\AbstractModel
             $this->setId($maxId ? $maxId + 1 : 1);
         }
 
+        if (!preg_match('/[a-zA-Z][a-zA-Z0-9_]+/', $this->getName())) {
+            throw new \Exception(sprintf('Invalid name for class definition: %s', $this->getName()));
+        }
+
+        if (!preg_match('/[a-zA-Z0-9]([a-zA-Z0-9_]+)?/', $this->getId())) {
+            throw new \Exception(sprintf('Invalid ID `%s` for class definition %s', $this->getId(), $this->getName()));
+        }
+
+        foreach (['parentClass', 'listingParentClass', 'useTraits', 'listingUseTraits'] as $propertyName) {
+            $propertyValue = $this->{'get'.ucfirst($propertyName)}();
+            if ($propertyValue && !preg_match('/^[a-zA-Z_\x7f-\xff\\\][a-zA-Z0-9_\x7f-\xff\\\ ,]*$/', $propertyValue)) {
+                throw new \Exception(sprintf('Invalid %s value for class definition: %s', $propertyName,
+                    $this->getParentClass()));
+            }
+        }
+
         $isUpdate = $this->exists();
 
         if (!$isUpdate) {
@@ -343,33 +360,58 @@ class ClassDefinition extends Model\AbstractModel
         $cd .= "\n\n";
         $cd .= 'namespace Pimcore\\Model\\DataObject;';
         $cd .= "\n\n";
+        $cd .= 'use Pimcore\Model\DataObject\Exception\InheritanceParentNotFoundException;';
+        $cd .= "\n";
+        $cd .= 'use Pimcore\Model\DataObject\PreGetValueHookInterface;';
         $cd .= "\n\n";
         $cd .= "/**\n";
         if (is_array($this->getFieldDefinitions()) && count($this->getFieldDefinitions())) {
             foreach ($this->getFieldDefinitions() as $key => $def) {
-                if (!(method_exists($def, 'isRemoteOwner') and $def->isRemoteOwner())) {
-                    if ($def instanceof DataObject\ClassDefinition\Data\Localizedfields) {
+                if ($def instanceof DataObject\ClassDefinition\Data\Localizedfields) {
+                    $cd .= '* @method static \\Pimcore\\Model\\DataObject\\'.ucfirst(
+                            $this->getName()
+                        ).'\Listing|\\Pimcore\\Model\\DataObject\\'.ucfirst(
+                            $this->getName()
+                        ).' getBy'.ucfirst(
+                            $def->getName()
+                        ).' ($field, $value, $locale = null, $limit = 0) '."\n";
+
+                    foreach($def->getFieldDefinitions() as $localizedFieldDefinition) {
                         $cd .= '* @method static \\Pimcore\\Model\\DataObject\\'.ucfirst(
                                 $this->getName()
-                            ).'\Listing getBy'.ucfirst(
-                                $def->getName()
-                            ).' ($field, $value, $locale = null, $limit = 0) '."\n";
-                    } else {
-                        $cd .= '* @method static \\Pimcore\\Model\\DataObject\\'.ucfirst(
+                            ).'\Listing|\\Pimcore\\Model\\DataObject\\'.ucfirst(
                                 $this->getName()
-                            ).'\Listing getBy'.ucfirst($def->getName()).' ($value, $limit = 0) '."\n";
+                            ).' getBy'.ucfirst(
+                                $localizedFieldDefinition->getName()
+                            ).' ($value, $locale = null, $limit = 0) '."\n";
                     }
+                } elseif($def->isFilterable()) {
+                    $cd .= '* @method static \\Pimcore\\Model\\DataObject\\'.ucfirst(
+                            $this->getName()
+                        ).'\Listing|\\Pimcore\\Model\\DataObject\\'.ucfirst(
+                            $this->getName()
+                        ).' getBy'.ucfirst($def->getName()).' ($value, $limit = 0) '."\n";
                 }
             }
         }
         $cd .= "*/\n\n";
 
-        $cd .= 'class '.ucfirst($this->getName()).' extends '.$extendClass.' implements \\Pimcore\\Model\\DataObject\\DirtyIndicatorInterface {';
+
+        $implementsBlock = '\\Pimcore\\Model\\DataObject\\DirtyIndicatorInterface';
+        if ($this->getCacheRawRelationData()) {
+            $implementsBlock .= ',\\Pimcore\\Model\\DataObject\\CacheRawRelationDataInterface';
+        }
+
+        $cd .= 'class '.ucfirst($this->getName()).' extends '.$extendClass.' implements ' . $implementsBlock . ' {';
         $cd .= "\n\n";
 
+        $cd .= 'use \Pimcore\Model\DataObject\Traits\DirtyIndicatorTrait;';
         $cd .= "\n\n";
-        $cd .= 'use \\Pimcore\\Model\\DataObject\\Traits\\DirtyIndicatorTrait;';
-        $cd .= "\n\n";
+
+        if ($this->getCacheRawRelationData()) {
+            $cd .= 'use \Pimcore\Model\DataObject\Traits\CacheRawRelationDataTrait;';
+            $cd .= "\n\n";
+        }
 
         if ($this->getUseTraits()) {
             $cd .= 'use '.$this->getUseTraits().";\n";
@@ -460,6 +502,20 @@ class ClassDefinition extends Model\AbstractModel
 
         $cd .= 'protected $classId = "'. $this->getId()."\";\n";
         $cd .= 'protected $className = "'.$this->getName().'"'.";\n";
+
+        $cd .= "\n\n";
+
+        if(\is_array($this->getFieldDefinitions())) {
+            foreach ($this->getFieldDefinitions() as $key => $def) {
+                if($def instanceof DataObject\ClassDefinition\Data\Localizedfields) {
+                    foreach($def->getFieldDefinitions() as $localizedFieldDefinition) {
+                        $cd .= $localizedFieldDefinition->getFilterCode();
+                    }
+                } elseif($def->isFilterable()) {
+                    $cd .= $def->getFilterCode();
+                }
+            }
+        }
 
         $cd .= "\n\n";
         $cd .= "}\n";
@@ -618,7 +674,7 @@ class ClassDefinition extends Model\AbstractModel
 
         $brickListing = new DataObject\Objectbrick\Definition\Listing();
         $brickListing = $brickListing->load();
-        /** @var $brickDefinition DataObject\Objectbrick\Definition */
+        /** @var DataObject\Objectbrick\Definition $brickDefinition */
         foreach ($brickListing as $brickDefinition) {
             $modified = false;
 
@@ -859,9 +915,10 @@ class ClassDefinition extends Model\AbstractModel
     }
 
     /**
-     * @param $key
+     * @param string $key
+     * @param array $context
      *
-     * @return DataObject\ClassDefinition\Data|bool
+     * @return DataObject\ClassDefinition\Data|null
      */
     public function getFieldDefinition($key, $context = [])
     {
@@ -874,7 +931,7 @@ class ClassDefinition extends Model\AbstractModel
             return $fieldDefinition;
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -921,26 +978,6 @@ class ClassDefinition extends Model\AbstractModel
                 $this->addFieldDefinition($def->getName(), $def);
             }
         }
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getParent()
-    {
-        return $this->parent;
-    }
-
-    /**
-     * @param mixed $parent
-     *
-     * @return $this
-     */
-    public function setParent($parent)
-    {
-        $this->parent = $parent;
-
-        return $this;
     }
 
     /**
@@ -1291,37 +1328,22 @@ class ClassDefinition extends Model\AbstractModel
     }
 
     /**
-     * @deprecated Just a BC compatibility method
-     * Adds given data field after existing field with given field name. If existing field is not found, nothing is added.
-     *
-     * @param $fieldNameToAddAfter
-     * @param ClassDefinition\Data $fieldToAdd
-     * @param ClassDefinition\Layout|null $layoutComponent
+     * @return bool
      */
-    public function addNewDataField($fieldNameToAddAfter, DataObject\ClassDefinition\Data $fieldToAdd, DataObject\ClassDefinition\Layout $layoutComponent = null)
+    public function getCacheRawRelationData(): bool
     {
-        if (null === $layoutComponent) {
-            $layoutComponent = $this->getLayoutDefinitions();
-        }
-
-        $definitionModifier = new DefinitionModifier();
-        $definitionModifier->appendFields($layoutComponent, $fieldNameToAddAfter, $fieldToAdd);
+        return $this->cacheRawRelationData;
     }
 
     /**
-     * @deprecated Just a BC compatibility method
-     * Removes data field with given name. If not found, nothing is removed.
-     *
-     * @param $fieldNameToRemove
-     * @param ClassDefinition\Layout|null $layoutComponent
+     * @param bool $cacheRawRelationData
+     * @return $this
      */
-    public function removeExistingDataField($fieldNameToRemove, DataObject\ClassDefinition\Layout $layoutComponent = null)
+    public function setCacheRawRelationData($cacheRawRelationData)
     {
-        if (null === $layoutComponent) {
-            $layoutComponent = $this->getLayoutDefinitions();
-        }
-
-        $definitionModifier = new DefinitionModifier();
-        $definitionModifier->removeField($layoutComponent, $fieldNameToRemove);
+        $this->cacheRawRelationData = (bool) $cacheRawRelationData;
+        return $this;
     }
+
+
 }

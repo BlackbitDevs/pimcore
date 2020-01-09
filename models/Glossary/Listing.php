@@ -22,22 +22,27 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\Glossary\Listing\Dao getDao()
  * @method Model\Glossary[] load()
+ * @method Model\Glossary current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list. They are all an instance of Glossary
-     *
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $glossary = [];
+    protected $glossary = null;
+
+    public function __construct()
+    {
+        $this->glossary =& $this->data;
+    }
 
     /**
-     * @return array
+     * @return Model\Glossary[]
      */
     public function getGlossary()
     {
-        return $this->glossary;
+        return $this->getData();
     }
 
     /**
@@ -47,8 +52,6 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setGlossary($glossary)
     {
-        $this->glossary = $glossary;
-
-        return $this;
+        return $this->setData($glossary);
     }
 }

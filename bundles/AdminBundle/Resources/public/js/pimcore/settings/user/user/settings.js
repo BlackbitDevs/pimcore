@@ -145,8 +145,10 @@ pimcore.settings.user.user.settings = Class.create({
             }]
         });
 
-        var date = new Date();
-        var image = "/admin/user/get-image?id=" + this.currentUser.id + "&_dc=" + date.getTime();
+        var getPreviewImageHTML = function () {
+            var date = new Date();
+            return '<img src="/admin/user/get-image?id=' + this.currentUser.id + '&_dc=' + date.getTime() + '" style="width: 46px" />'
+        }.bind(this);
 
         generalItems.push({
             xtype: "fieldset",
@@ -154,10 +156,7 @@ pimcore.settings.user.user.settings = Class.create({
             items: [{
                 xtype: "container",
                 id: "pimcore_user_image_" + this.currentUser.id,
-                html: '<img src="' + image + '" />',
-                width: 45,
-                height: 45,
-                style: "float:left; margin-right: 10px;"
+                html: getPreviewImageHTML()
             }, {
                 xtype: "button",
                 text: t("upload"),
@@ -165,9 +164,7 @@ pimcore.settings.user.user.settings = Class.create({
                     pimcore.helpers.uploadDialog("/admin/user/upload-image?id=" + this.currentUser.id, null,
                         function () {
                             var cont = Ext.getCmp("pimcore_user_image_" + this.currentUser.id);
-                            var date = new Date();
-                            cont.update('<img src="/admin/user/get-image?id='
-                                + this.currentUser.id + '&_dc=' + date.getTime() + '" />');
+                            cont.update(getPreviewImageHTML());
                         }.bind(this));
                 }.bind(this)
             }]
@@ -187,12 +184,60 @@ pimcore.settings.user.user.settings = Class.create({
             value: this.currentUser.lastname,
             width: 400
         });
-        generalItems.push({
+
+        var emailField = new Ext.form.field.Text({
             xtype: "textfield",
             fieldLabel: t("email"),
             name: "email",
             value: this.currentUser.email,
             width: 400
+        });
+
+        generalItems.push({
+            xtype: "fieldcontainer",
+            layout: 'hbox',
+
+            items: [emailField,
+                {
+                    text: t("send_invitation_link"),
+                    xtype: "button",
+                    style: "margin-left: 8px",
+                    iconCls: "pimcore_nav_icon_email",
+                    hidden: (this.currentUser.lastLogin > 0) || (user.id == this.currentUser.id),
+                    handler: function () {
+                        Ext.Ajax.request({
+                            url: "/admin/user/invitationlink",
+                            method: 'POST',
+                            ignoreErrors: true,
+                            params: {
+                                username: this.currentUser.name
+                            },
+                            success: function (response) {
+                                var res = Ext.decode(response.responseText);
+                                if (res.success) {
+                                    Ext.MessageBox.alert(t('invitation_sent'), res.message);
+                                } else {
+                                    Ext.MessageBox.alert(t('error'), res.message);
+                                }
+                            }.bind(this),
+                            failure: function (response) {
+                                var message = t("error_general");
+
+                                try {
+                                    var json = Ext.decode(response.responseText);
+                                    if (json.message) {
+
+                                        message = json.message;
+                                    }
+                                } catch (e) {
+                                }
+
+                                pimcore.helpers.showNotification(t("error"), message, "error");
+                            }
+                        });
+                    }.bind(this)
+                }
+            ]
         });
 
         generalItems.push({
@@ -381,8 +426,22 @@ pimcore.settings.user.user.settings = Class.create({
                     success: function (response) {
                         var res = Ext.decode(response.responseText);
                         if (res["link"]) {
-                            Ext.MessageBox.alert("", t("login_as_this_user_description")
-                                + ' <br /><br /><textarea style="width:100%;height:70px;">' + res["link"] + "</textarea>");
+                            Ext.MessageBox.show({
+                                title: t("login_as_this_user"),
+                                msg: t("login_as_this_user_description")
+                                    + '<br /><br /><textarea style="width:100%;height:90px;" readonly="readonly">' + res["link"] + "</textarea>",
+                                buttons: Ext.MessageBox.YESNO,
+                                buttonText: {
+                                    yes: t("copy") + ' & ' + t("close"),
+                                    no: t("close")
+                                },
+                                scope: this,
+                                fn: function (result) {
+                                    if (result === 'yes') {
+                                        pimcore.helpers.copyStringToClipboard(res["link"]);
+                                    }
+                                }
+                            });
                         }
                     },
                     failure: function (response) {
@@ -394,7 +453,8 @@ pimcore.settings.user.user.settings = Class.create({
 
                                 message = json.message;
                             }
-                        } catch (e) {}
+                        } catch (e) {
+                        }
 
                         pimcore.helpers.showNotification(t("error"), message, "error");
                     }
@@ -408,26 +468,42 @@ pimcore.settings.user.user.settings = Class.create({
             items: adminItems
         });
 
-
-        var availPermsItems = [];
-        // add available permissions
+        var itemsPerSection = [];
+        var sectionArray = [];
         for (var i = 0; i < this.data.availablePermissions.length; i++) {
-            availPermsItems.push({
+            let section = this.data.availablePermissions[i].category;
+            if (!section) {
+                section = "default";
+            }
+            if (!itemsPerSection[section]) {
+                itemsPerSection[section] = [];
+            }
+            itemsPerSection[section].push({
                 xtype: "checkbox",
-                boxLabel: t(this.data.availablePermissions[i].key),
+                fieldLabel: t(this.data.availablePermissions[i].key),
                 name: "permission_" + this.data.availablePermissions[i].key,
                 checked: this.data.permissions[this.data.availablePermissions[i].key],
-                labelStyle: "width: 200px;"
+                labelWidth: 200
             });
         }
+        for (var key in itemsPerSection) {
+            let title = t("permissions");
+            if (key && key != "default") {
+                title += " " + t(key);
+            }
 
-        this.permissionsSet = new Ext.form.FieldSet({
-            collapsible: true,
-            title: t("permissions"),
-            items: availPermsItems,
+            sectionArray.push(new Ext.form.FieldSet({
+                collapsible: true,
+                title: title,
+                items: itemsPerSection[key],
+                collapsed: true,
+            }));
+        }
+
+        this.permissionsSet = new Ext.container.Container({
+            items: sectionArray,
             hidden: this.currentUser.admin
         });
-
 
         this.typesSet = new Ext.form.FieldSet({
             collapsible: true,
@@ -439,10 +515,18 @@ pimcore.settings.user.user.settings = Class.create({
                     editable: false,
                     fieldLabel: t("document_types"),
                     width: 400,
-                    displayField: "name",
                     valueField: "id",
                     store: pimcore.globalmanager.get("document_types_store"),
-                    value: this.currentUser.docTypes
+                    value: this.currentUser.docTypes,
+                    listConfig: {
+                        itemTpl: new Ext.XTemplate('{[this.sanitize(values.name)]}',
+                            {
+                                sanitize: function (name) {
+                                    return Ext.util.Format.htmlEncode(name);
+                                }
+                            }
+                        )
+                    }
                 }),
                 Ext.create('Ext.ux.form.MultiSelect', {
                     name: "classes",

@@ -22,13 +22,20 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\DataObject\QuantityValue\Unit\Listing\Dao getDao()
  * @method Model\DataObject\QuantityValue\Unit[] load()
+ * @method Model\DataObject\QuantityValue\Unit current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $units;
+    protected $units = null;
+
+    public function __construct()
+    {
+        $this->units =& $this->data;
+    }
 
     /**
      * @param $key
@@ -37,30 +44,24 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function isValidOrderKey($key)
     {
-        if ($key == 'abbreviation' || $key == 'group' || $key == 'id' || $key == 'longname') {
-            return true;
-        }
-
-        return false;
+        return $key === 'abbreviation' || $key === 'group' || $key === 'id' || $key === 'longname';
     }
 
     /**
-     * @return array
+     * @return Model\DataObject\QuantityValue\Unit[]
      */
     public function getUnits()
     {
-        if (empty($this->units)) {
-            $this->load();
-        }
-
-        return $this->units;
+        return $this->getData();
     }
 
     /**
      * @param array $units
+     *
+     * @return static
      */
     public function setUnits($units)
     {
-        $this->units = $units;
+        return $this->setData($units);
     }
 }

@@ -46,7 +46,9 @@ class PdfReactor8 extends Processor
             'encryption' => $config->encryption,
             'addTags' => $config->tags == 'true',
             'logLevel' => $config->loglevel,
-            'addOverprint' => $config->addOverprint == 'true'
+            'enableDebugMode' => $web2PrintConfig->pdfreactorEnableDebugMode || $config->enableDebugMode == 'true',
+            'addOverprint' => $config->addOverprint == 'true',
+            'httpsMode' => $web2PrintConfig->pdfreactorEnableLenientHttpsMode ? \HttpsMode::LENIENT : \HttpsMode::STRICT
         ];
         if ($config->viewerPreference) {
             $reactorConfig['viewerPreferences'] = [$config->viewerPreference];
@@ -175,8 +177,8 @@ class PdfReactor8 extends Processor
 
         $options[] = ['name' => 'author', 'type' => 'text', 'default' => ''];
         $options[] = ['name' => 'title', 'type' => 'text', 'default' => ''];
-        $options[] = ['name' => 'printermarks', 'type' => 'bool', 'default' => ''];
-        $options[] = ['name' => 'addOverprint', 'type' => 'bool', 'default' => ''];
+        $options[] = ['name' => 'printermarks', 'type' => 'bool', 'default' => false];
+        $options[] = ['name' => 'addOverprint', 'type' => 'bool', 'default' => false];
         $options[] = ['name' => 'links', 'type' => 'bool', 'default' => true];
         $options[] = ['name' => 'bookmarks', 'type' => 'bool', 'default' => true];
         $options[] = ['name' => 'tags', 'type' => 'bool', 'default' => true];
@@ -214,6 +216,8 @@ class PdfReactor8 extends Processor
             'values' => [\LogLevel::FATAL, \LogLevel::WARN, \LogLevel::INFO, \LogLevel::DEBUG, \LogLevel::PERFORMANCE],
             'default' => \LogLevel::FATAL
         ];
+
+        $options[] = ['name' => 'enableDebugMode', 'type' => 'bool', 'default' => false];
 
         $event = new PrintConfigEvent($this, [
             'options' => $options

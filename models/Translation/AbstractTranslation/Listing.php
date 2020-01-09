@@ -22,6 +22,7 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\Translation\AbstractTranslation\Listing\Dao getDao()
  * @method Model\Translation\AbstractTranslation[] load()
+ * @method Model\Translation\AbstractTranslation current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
@@ -29,18 +30,22 @@ class Listing extends Model\Listing\AbstractListing
     protected static $cacheLimit = 5000;
 
     /**
-     * Contains the results of the list. They are all an instance of Staticroute
-     *
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $translations = [];
+    protected $translations = null;
+
+    public function __construct()
+    {
+        $this->translations =& $this->data;
+    }
 
     /**
-     * @return array
+     * @return \Pimcore\Model\Translation\AbstractTranslation[]
      */
     public function getTranslations()
     {
-        return $this->translations;
+        return $this->getData();
     }
 
     /**
@@ -50,9 +55,7 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setTranslations($translations)
     {
-        $this->translations = $translations;
-
-        return $this;
+        return $this->setData($translations);
     }
 
     /**

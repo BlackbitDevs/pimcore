@@ -167,7 +167,7 @@ class Console
     protected static function checkPngout($executablePath)
     {
         try {
-            $process = new Process($executablePath . ' --help');
+            $process = new Process([$executablePath, '--help']);
             $process->run();
             if (strpos($process->getOutput() . $process->getErrorOutput(), 'bitdepth') !== false) {
                 return true;
@@ -187,7 +187,7 @@ class Console
     protected static function checkCjpeg($executablePath)
     {
         try {
-            $process = new Process($executablePath . ' --help');
+            $process = new Process([$executablePath, '--help']);
             $process->run();
             if (strpos($process->getOutput() . $process->getErrorOutput(), '-optimize') !== false) {
                 if (strpos($process->getOutput() . $process->getErrorOutput(), 'mozjpeg') !== false) {
@@ -219,7 +219,7 @@ class Console
     protected static function checkConvert($executablePath)
     {
         try {
-            $process = new Process($executablePath . ' --help');
+            $process = new Process([$executablePath, '--help']);
             $process->run();
             if (strpos($process->getOutput() . $process->getErrorOutput(), 'imagemagick.org') !== false) {
                 return true;
@@ -403,9 +403,9 @@ class Console
          * mod_php seems to lose the environment variables if we do not set them manually before the child process is started
          */
         if (strpos(php_sapi_name(), 'apache') !== false) {
-            foreach (['PIMCORE_ENVIRONMENT', 'REDIRECT_PIMCORE_ENVIRONMENT'] as $envKey) {
-                if ($envValue = getenv($envKey)) {
-                    putenv($envKey . '='.$envValue);
+            foreach (['PIMCORE_ENVIRONMENT', 'SYMFONY_ENV', 'APP_ENV'] as $envVarName) {
+                if ($envValue = $_SERVER[$envVarName] ?? $_SERVER['REDIRECT_' . $envVarName] ?? null) {
+                    putenv($envVarName . '='.$envValue);
                 }
             }
         }
@@ -491,29 +491,6 @@ class Console
         }
 
         return $string;
-    }
-
-    /**
-     * @param array $allowedUsers
-     *
-     * @throws \Exception
-     */
-    public static function checkExecutingUser($allowedUsers = [])
-    {
-        $configFile = \Pimcore\Config::locateConfigFile('system.php');
-        $owner = fileowner($configFile);
-        if ($owner == false) {
-            throw new \Exception("Couldn't get user from file " . $configFile);
-        }
-        $userData = posix_getpwuid($owner);
-        $allowedUsers[] = $userData['name'];
-
-        $scriptExecutingUserData = posix_getpwuid(posix_geteuid());
-        $scriptExecutingUser = $scriptExecutingUserData['name'];
-
-        if (!in_array($scriptExecutingUser, $allowedUsers)) {
-            throw new \Exception("The current system user is not allowed to execute this script. Allowed users: '" . implode(',', $allowedUsers) ."' Executing user: '$scriptExecutingUser'.");
-        }
     }
 
     /**

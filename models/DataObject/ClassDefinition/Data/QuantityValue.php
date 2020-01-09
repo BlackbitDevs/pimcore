@@ -65,6 +65,12 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
     public $decimalPrecision;
 
     /**
+     *
+     * @var bool
+     */
+    public $autoConvert;
+
+    /**
      * Type for the column to query
      *
      * @var int
@@ -112,11 +118,11 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
      */
     public function getUnitWidth()
     {
-        return $this->width;
+        return $this->unitWidth;
     }
 
     /**
-     * @param int $width
+     * @param int $unitWidth
      */
     public function setUnitWidth($unitWidth)
     {
@@ -189,6 +195,22 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
     public function setDecimalPrecision($decimalPrecision)
     {
         $this->decimalPrecision = $decimalPrecision;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isAutoConvert(): bool
+    {
+        return $this->autoConvert;
+    }
+
+    /**
+     * @param bool $autoConvert
+     */
+    public function setAutoConvert($autoConvert)
+    {
+        $this->autoConvert = (bool)$autoConvert;
     }
 
     /**
@@ -443,6 +465,7 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
     /**
      * converts data to be exposed via webservices
      *
+     * @deprecated
      * @param string $object
      * @param mixed $params
      *
@@ -466,10 +489,11 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
     /**
      * converts data to be imported via webservices
      *
+     * @deprecated
      * @param mixed $value
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
-     * @param $idMapper
+     * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
      * @return mixed
      *
@@ -563,7 +587,10 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
     public function configureOptions()
     {
         if (!$this->validUnits) {
+            $table = null;
             try {
+                $table = null;
+
                 if (Runtime::isRegistered(Model\DataObject\QuantityValue\Unit::CACHE_KEY)) {
                     $table = Runtime::get(Model\DataObject\QuantityValue\Unit::CACHE_KEY);
                 }
@@ -578,8 +605,10 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
                 if (!is_array($table)) {
                     $table = [];
                     $list = new Model\DataObject\QuantityValue\Unit\Listing();
+                    $list->setOrderKey('abbreviation');
+                    $list->setOrder('asc');
                     $list = $list->load();
-                    /** @var $item Model\DataObject\QuantityValue\Unit */
+                    /** @var Model\DataObject\QuantityValue\Unit $item */
                     foreach ($list as $item) {
                         $table[$item->getId()] = $item;
                     }
@@ -593,7 +622,7 @@ class QuantityValue extends Data implements ResourcePersistenceAwareInterface, Q
 
             if (is_array($table)) {
                 $this->validUnits = [];
-                /** @var $unit Model\DataObject\QuantityValue\Unit */
+                /** @var Model\DataObject\QuantityValue\Unit $unit */
                 foreach ($table as $unit) {
                     $this->validUnits[] = $unit->getId();
                 }

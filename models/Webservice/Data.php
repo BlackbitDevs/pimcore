@@ -22,6 +22,9 @@ use Pimcore\Model;
 use Pimcore\Model\Element;
 use Pimcore\Model\Webservice;
 
+/**
+ * @deprecated
+ */
 abstract class Data
 {
     /**
@@ -37,6 +40,10 @@ abstract class Data
 
         if ($this instanceof \Pimcore\Model\Webservice\Data\Asset\File && isset($options['LIGHT']) && $options['LIGHT']) {
             $blockedKeys[] = 'data';
+        }
+
+        if ($object instanceof Model\Document\Tag\Relations) {
+            $blockedKeys[] = 'value';
         }
 
         foreach ($keys as $key => $value) {
@@ -80,7 +87,7 @@ abstract class Data
                     $noteList[] = Element\Service::getNoteData($note);
                 }
             }
-            $this->notes = $noteList;
+            $this->{'notes'} = $noteList;
         }
     }
 
@@ -116,7 +123,7 @@ abstract class Data
     /**
      * @param $object
      * @param bool $disableMappingExceptions
-     * @param null $idMapper
+     * @param Webservice\IdMapperInterface|null $idMapper
      *
      * @throws \Exception
      */
@@ -138,11 +145,10 @@ abstract class Data
             $object->setProperties(null);
         }
 
-        if (is_array($this->properties)) {
+        if (isset($this->properties) && is_array($this->properties)) {
             foreach ($this->properties as $propertyWs) {
                 $propertyWs = (array) $propertyWs;
 
-                $dat = $propertyWs['data'];
                 $type = $propertyWs['type'];
                 if (in_array($type, ['object', 'document', 'asset'])) {
                     $id = $propertyWs['data'];

@@ -25,7 +25,6 @@ use Pimcore\Loader\ImplementationLoader\PrefixLoader;
 use Pimcore\Migrations\Configuration\ConfigurationFactory;
 use Pimcore\Model\Document\Tag\Loader\PrefixLoader as DocumentTagPrefixLoader;
 use Pimcore\Model\Factory;
-use Pimcore\Routing\Loader\AnnotatedRouteControllerLoader;
 use Pimcore\Sitemap\EventListener\SitemapGeneratorListener;
 use Pimcore\Targeting\ActionHandler\DelegatingActionHandler;
 use Pimcore\Targeting\DataLoaderInterface;
@@ -36,7 +35,6 @@ use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
-use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
@@ -58,6 +56,11 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
      */
     public function loadInternal(array $config, ContainerBuilder $container)
     {
+        // performance improvement, see https://github.com/symfony/symfony/pull/26276/files
+        if(!$container->hasParameter('container.dumper.inline_class_loader')) {
+            $container->setParameter('container.dumper.inline_class_loader', true);
+        }
+
         // bundle manager/locator config
         $container->setParameter('pimcore.extensions.bundles.search_paths', $config['bundles']['search_paths']);
         $container->setParameter('pimcore.extensions.bundles.handle_composer', $config['bundles']['handle_composer']);
@@ -81,7 +84,11 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
         // TODO only extract what we need as parameter?
         $container->setParameter('pimcore.config', $config);
 
-        $this->setAnnotationRouteControllerLoader($container);
+        // set default domain for router to main domain if configured
+        // this will be overridden from the request in web context but is handy for CLI scripts
+        if (!empty($config['general']['domain'])) {
+            $container->setParameter('router.request_context.host', $config['general']['domain']);
+        }
 
         $loader = new YamlFileLoader(
             $container,
@@ -106,6 +113,7 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
         $loader->load('sitemaps.yml');
         $loader->load('aliases.yml');
         $loader->load('image_optimizers.yml');
+        $loader->load('maintenance.yml');
         $loader->load('commands.yml');
 
         $this->configureImplementationLoaders($container, $config);
@@ -116,8 +124,8 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
         $this->configureTranslations($container, $config['translations']);
         $this->configureTargeting($container, $loader, $config['targeting']);
         $this->configurePasswordEncoders($container, $config);
-        $this->configureAdapterFactories($container, $config['newsletter']['source_adapters'], 'pimcore.newsletter.address_source_adapter.factories', 'Newsletter Address Source Adapter Factory');
-        $this->configureAdapterFactories($container, $config['custom_report']['adapters'], 'pimcore.custom_report.adapter.factories', 'Custom Report Adapter Factory');
+        $this->configureAdapterFactories($container, $config['newsletter']['source_adapters'], 'pimcore.newsletter.address_source_adapter.factories');
+        $this->configureAdapterFactories($container, $config['custom_report']['adapters'], 'pimcore.custom_report.adapter.factories');
         $this->configureMigrations($container, $config['migrations']);
         $this->configureGoogleAnalyticsFallbackServiceLocator($container);
         $this->configureSitemaps($container, $config['sitemaps']);
@@ -142,7 +150,7 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
 
     /**
      * @param ContainerBuilder $container
-     * @param $config
+     * @param array $config
      */
     private function configureModelFactory(ContainerBuilder $container, array $config)
     {
@@ -157,6 +165,10 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
         $service->addMethodCall('addLoader', [new Reference($classMapLoaderId)]);
     }
 
+    /**
+     * @param ContainerBuilder $container
+     * @param array $config
+     */
     private function configureDocumentEditableNamingStrategy(ContainerBuilder $container, array $config)
     {
         $strategyName = $config['documents']['editables']['naming_strategy'];
@@ -327,7 +339,9 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
     {
         $container->setParameter('pimcore.targeting.enabled', $config['enabled']);
         $container->setParameter('pimcore.targeting.conditions', $config['conditions']);
-        $container->setParameter('pimcore.geoip.db_file', PIMCORE_CONFIGURATION_DIRECTORY . '/GeoLite2-City.mmdb');
+        if(!$container->hasParameter('pimcore.geoip.db_file')) {
+            $container->setParameter('pimcore.geoip.db_file', null);
+        }
 
         $loader->load('targeting.yml');
 
@@ -336,6 +350,7 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
 
         if ($config['enabled']) {
             // enable targeting by registering listeners
+            $loader->load('targeting/services.yml');
             $loader->load('targeting/listeners.yml');
 
             // add session support by registering the session configurator and session storage
@@ -396,7 +411,7 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
      * Handle pimcore.security.encoder_factories mapping
      *
      * @param ContainerBuilder $container
-     * @param $config
+     * @param array $config
      */
     private function configurePasswordEncoders(ContainerBuilder $container, array $config)
     {
@@ -501,28 +516,6 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
     }
 
     /**
-     * Set annotation loader to our own implementation normalizing admin routes: converts the prefix
-     * pimcore_pimcoreadmin_ to just pimcore_admin_
-     *
-     * @param ContainerBuilder $container
-     */
-    private function setAnnotationRouteControllerLoader(ContainerBuilder $container)
-    {
-        $parameter = 'sensio_framework_extra.routing.loader.annot_class.class';
-
-        // make sure the parameter is not dropped by sensio framework extra bundle
-        // if this exception is thrown, implement the class override in a compiler pass
-        if (!$container->hasParameter($parameter)) {
-            throw new RuntimeException(sprintf(
-                'The sensio framework extra bundle removed support for the "%s" parameter',
-                $parameter
-            ));
-        }
-
-        $container->setParameter($parameter, AnnotatedRouteControllerLoader::class);
-    }
-
-    /**
      * The security component disallows definition of firewalls and access_control entries from different files to enforce
      * security. However this limits our possibilities how to provide a security config for the admin area while making
      * the security component usable for applications built on Pimcore. This merges multiple security configs together
@@ -559,7 +552,7 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
      * the property via reflection
      *
      * @param ContainerBuilder $container
-     * @param $name
+     * @param string $name
      * @param array $config
      */
     private function setExtensionConfig(ContainerBuilder $container, $name, array $config = [])
@@ -579,11 +572,10 @@ class PimcoreCoreExtension extends ConfigurableExtension implements PrependExten
      * Configure Adapter Factories
      *
      * @param ContainerBuilder $container
-     * @param $factories
-     * @param $serviceLocatorId
-     * @param $type
+     * @param array $factories
+     * @param string $serviceLocatorId
      */
-    private function configureAdapterFactories(ContainerBuilder $container, $factories, $serviceLocatorId, $type)
+    private function configureAdapterFactories(ContainerBuilder $container, $factories, $serviceLocatorId)
     {
         $serviceLocator = $container->getDefinition($serviceLocatorId);
         $arguments = [];

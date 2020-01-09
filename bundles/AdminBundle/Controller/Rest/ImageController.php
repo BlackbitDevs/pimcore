@@ -20,6 +20,9 @@ use Pimcore\Model\Asset\Image\Thumbnail\Config;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
+/**
+ * @deprecated
+ */
 class ImageController extends AbstractRestController
 {
     /**
@@ -59,7 +62,7 @@ class ImageController extends AbstractRestController
         $thumbnails = [];
 
         $list = new Config\Listing();
-        $items = $list->load();
+        $items = $list->getThumbnails();
 
         foreach ($items as $item) {
             $thumbnails[] = [

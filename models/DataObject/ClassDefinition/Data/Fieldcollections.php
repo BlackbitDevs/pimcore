@@ -75,6 +75,11 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     public $collapsible;
 
     /**
+     * @var bool
+     */
+    public $border = false;
+
+    /**
      * @return bool
      */
     public function getLazyLoading()
@@ -116,39 +121,35 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     continue;
                 }
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    $collectionData = [];
 
-                $collectionData = [];
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    if (!$fd instanceof CalculatedValue) {
-                        $value = $item->{'get' . $fd->getName()}();
-                        $collectionData[$fd->getName()] = $fd->getDataForEditmode($value, $object, $params);
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        if (!$fd instanceof CalculatedValue) {
+                            $value = $item->{'get' . $fd->getName()}();
+                            $collectionData[$fd->getName()] = $fd->getDataForEditmode($value, $object, $params);
+                        }
                     }
-                }
 
-                $calculatedChilds = [];
-                self::collectCalculatedValueItems($collectionDef->getFieldDefinitions(), $calculatedChilds);
+                    $calculatedChilds = [];
+                    self::collectCalculatedValueItems($collectionDef->getFieldDefinitions(), $calculatedChilds);
 
-                if ($calculatedChilds) {
-                    foreach ($calculatedChilds as $fd) {
-                        $data = new DataObject\Data\CalculatedValue($fd->getName());
-                        $data->setContextualData('fieldcollection', $this->getName(), $idx, null, null, null, $fd);
-                        $data = $fd->getDataForEditmode($data, $object, $params);
-                        $collectionData[$fd->getName()] = $data;
+                    if ($calculatedChilds) {
+                        foreach ($calculatedChilds as $fd) {
+                            $data = new DataObject\Data\CalculatedValue($fd->getName());
+                            $data->setContextualData('fieldcollection', $this->getName(), $idx, null, null, null, $fd);
+                            $data = $fd->getDataForEditmode($data, $object, $params);
+                            $collectionData[$fd->getName()] = $data;
+                        }
                     }
-                }
 
-                $editmodeData[] = [
-                    'data' => $collectionData,
-                    'type' => $item->getType(),
-                    'oIndex' => $idx,
-                    'title' => $collectionDef->getTitle()
-                ];
+                    $editmodeData[] = [
+                        'data' => $collectionData,
+                        'type' => $item->getType(),
+                        'oIndex' => $idx,
+                        'title' => $collectionDef->getTitle()
+                    ];
+                }
             }
         }
 
@@ -180,19 +181,36 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                 $fieldname = $this->getName();
 
                 foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    if (array_key_exists($fd->getName(), $collectionRaw['data'])) {
+                    $invisible = $fd->getInvisible();
+                    if ($invisible && !is_null($oIndex)) {
+                        $containerGetter = 'get' . ucfirst($fieldname);
+                        $container = $object->$containerGetter();
+                        if ($container) {
+                            $items = $container->getItems();
+                            $invisibleData = null;
+                            if ($items && count($items) > $oIndex) {
+                                $item = $items[$oIndex];
+                                $getter = 'get' . ucfirst($fd->getName());
+                                $invisibleData = $item->$getter();
+                            }
+
+                            $collectionData[$fd->getName()] = $invisibleData;
+                        }
+                    } elseif (array_key_exists($fd->getName(), $collectionRaw['data'])) {
+                        $collectionParams = [
+                            'context' => [
+                                'containerType' => 'fieldcollection',
+                                'containerKey' => $collectionKey,
+                                'fieldname' => $fieldname,
+                                'index' => $count,
+                                'oIndex' => $oIndex
+                            ]
+                        ];
+
                         $collectionData[$fd->getName()] = $fd->getDataFromEditmode(
                             $collectionRaw['data'][$fd->getName()],
                             $object,
-                            [
-                                'context' => [
-                                    'containerType' => 'fieldcollection',
-                                    'containerKey' => $collectionKey,
-                                    'fieldname' => $fieldname,
-                                    'index' => $count,
-                                    'oIndex' => $oIndex
-                                ]
-                            ]
+                            $collectionParams
                         );
                     }
                 }
@@ -272,14 +290,10 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     continue;
                 }
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    $dataString .= $fd->getDataForSearchIndex($item, $params) . ' ';
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        $dataString .= $fd->getDataForSearchIndex($item, $params) . ' ';
+                    }
                 }
             }
         }
@@ -369,9 +383,7 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
 
         if (is_array($allowedTypes)) {
             for ($i = 0; $i < count($allowedTypes); $i++) {
-                try {
-                    DataObject\Fieldcollection\Definition::getByKey($allowedTypes[$i]);
-                } catch (\Exception $e) {
+                if (!DataObject\Fieldcollection\Definition::getByKey($allowedTypes[$i])) {
                     Logger::warn("Removed unknown allowed type [ $allowedTypes[$i] ] from allowed types of field collection");
                     unset($allowedTypes[$i]);
                 }
@@ -385,6 +397,7 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     }
 
     /**
+     * @deprecated
      * @param Model\DataObject\AbstractObject $object
      * @param mixed $params
      *
@@ -405,25 +418,21 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                 $wsDataItem->value = [];
                 $wsDataItem->type = $item->getType();
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        $el = new Webservice\Data\DataObject\Element();
+                        $el->name = $fd->getName();
+                        $el->type = $fd->getFieldType();
+                        $el->value = $fd->getForWebserviceExport($item, $params);
+                        if ($el->value == null && self::$dropNullValues) {
+                            continue;
+                        }
 
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    $el = new Webservice\Data\DataObject\Element();
-                    $el->name = $fd->getName();
-                    $el->type = $fd->getFieldType();
-                    $el->value = $fd->getForWebserviceExport($item, $params);
-                    if ($el->value == null && self::$dropNullValues) {
-                        continue;
+                        $wsDataItem->value[] = $el;
                     }
 
-                    $wsDataItem->value[] = $el;
+                    $wsData[] = $wsDataItem;
                 }
-
-                $wsData[] = $wsDataItem;
             }
         }
 
@@ -431,13 +440,13 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     }
 
     /**
+     * @deprecated
      * @param mixed $data
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
+     * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
      * @return mixed|DataObject\Fieldcollection
-     *
-     * @param $idMapper
      *
      * @throws \Exception
      */
@@ -512,15 +521,11 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     continue;
                 }
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    $getter = 'get' . ucfirst($fd->getName());
-                    $dependencies = array_merge($dependencies, $fd->resolveDependencies($item->$getter()));
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        $getter = 'get' . ucfirst($fd->getName());
+                        $dependencies = array_merge($dependencies, $fd->resolveDependencies($item->$getter()));
+                    }
                 }
             }
         }
@@ -546,15 +551,11 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     continue;
                 }
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    $getter = 'get' . ucfirst($fd->getName());
-                    $tags = $fd->getCacheTags($item->$getter(), $tags);
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        $getter = 'get' . ucfirst($fd->getName());
+                        $tags = $fd->getCacheTags($item->$getter(), $tags);
+                    }
                 }
             }
         }
@@ -583,21 +584,17 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                         continue;
                     }
 
-                    try {
-                        $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                    } catch (\Exception $e) {
-                        continue;
-                    }
-
-                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                        try {
-                            $getter = 'get' . ucfirst($fd->getName());
-                            if (!$fd instanceof CalculatedValue) {
-                                $fd->checkValidity($item->$getter());
+                    if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                        foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                            try {
+                                $getter = 'get' . ucfirst($fd->getName());
+                                if (!$fd instanceof CalculatedValue) {
+                                    $fd->checkValidity($item->$getter());
+                                }
+                            } catch (Model\Element\ValidationException $ve) {
+                                $ve->addContext($this->getName() . '-' . $idx);
+                                $validationExceptions[] = $ve;
                             }
-                        } catch (Model\Element\ValidationException $ve) {
-                            $ve->addContext($this->getName() . '-' . $idx);
-                            $validationExceptions[] = $ve;
                         }
                     }
                 }
@@ -689,9 +686,7 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
         $code .= '*/' . "\n";
         $code .= 'public function get' . ucfirst($key) . " () {\n";
 
-        // adds a hook preGetValue which can be defined in an extended class
-        $code .= "\t" . '$preValue = $this->preGetValue("' . $key . '");' . " \n";
-        $code .= "\t" . 'if($preValue !== null && !\Pimcore::inAdmin()) { return $preValue;}' . "\n";
+        $code .= $this->getPreGetValueHookCode($key);
 
         if (method_exists($this, 'preGetData')) {
             $code .= "\t" . '$data = $this->getClass()->getFieldDefinition("' . $key . '")->preGetData($this);' . "\n";
@@ -758,17 +753,13 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                 $type = $item->getType();
                 $html .= '<tr><th><b>' . $type . '</b></th><th>&nbsp;</th><th>&nbsp;</th></tr>';
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    $title = !empty($fd->title) ? $fd->title : $fd->getName();
-                    $html .= '<tr><td>&nbsp;</td><td>' . $title . '</td><td>';
-                    $html .= $fd->getVersionPreview($item->getObjectVar($fd->getName()), $object, $params);
-                    $html .= '</td></tr>';
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        $title = !empty($fd->title) ? $fd->title : $fd->getName();
+                        $html .= '<tr><td>&nbsp;</td><td>' . $title . '</td><td>';
+                        $html .= $fd->getVersionPreview($item->getObjectVar($fd->getName()), $object, $params);
+                        $html .= '</td></tr>';
+                    }
                 }
             }
 
@@ -824,17 +815,13 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     continue;
                 }
 
-                try {
-                    $collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType());
-                } catch (\Exception $e) {
-                    continue;
-                }
-
-                foreach ($collectionDef->getFieldDefinitions() as $fd) {
-                    if (method_exists($fd, 'rewriteIds')) {
-                        $d = $fd->rewriteIds($item, $idMapping, $params);
-                        $setter = 'set' . ucfirst($fd->getName());
-                        $item->$setter($d);
+                if ($collectionDef = DataObject\Fieldcollection\Definition::getByKey($item->getType())) {
+                    foreach ($collectionDef->getFieldDefinitions() as $fd) {
+                        if (method_exists($fd, 'rewriteIds')) {
+                            $d = $fd->rewriteIds($item, $idMapping, $params);
+                            $setter = 'set' . ucfirst($fd->getName());
+                            $item->$setter($d);
+                        }
                     }
                 }
             }
@@ -862,9 +849,8 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     public function classSaved($class, $params = [])
     {
         if (is_array($this->allowedTypes)) {
-            foreach ($this->allowedTypes as $allowedType) {
-                $definition = DataObject\Fieldcollection\Definition::getByKey($allowedType);
-                if ($definition) {
+            foreach ($this->allowedTypes as $i => $allowedType) {
+                if ($definition = DataObject\Fieldcollection\Definition::getByKey($allowedType)) {
                     $definition->getDao()->createUpdateTable($class);
                     $fieldDefinition = $definition->getFieldDefinitions();
 
@@ -878,6 +864,9 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
                     }
 
                     $definition->getDao()->classSaved($class);
+                } else {
+                    Logger::warn("Removed unknown allowed type [ $allowedType ] from allowed types of field collection");
+                    unset($this->allowedTypes[$i]);
                 }
             }
         }
@@ -918,6 +907,22 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     /**
      * @return bool
      */
+    public function getBorder(): bool
+    {
+        return $this->border;
+    }
+
+    /**
+     * @param bool $border
+     */
+    public function setBorder(bool $border): void
+    {
+        $this->border = $border;
+    }
+
+    /**
+     * @return bool
+     */
     public function isCollapsed()
     {
         return $this->collapsed;
@@ -948,13 +953,12 @@ class Fieldcollections extends Data implements CustomResourcePersistingInterface
     }
 
     /**
-     * @param $container
-     * @param array $list
+     * @param DataObject\ClassDefinition\Data[] $container
+     * @param DataObject\ClassDefinition\Data[] $list
      */
     public static function collectCalculatedValueItems($container, &$list = [])
     {
         if (is_array($container)) {
-            /** @var $childDef DataObject\ClassDefinition\Data */
             foreach ($container as $childDef) {
                 if ($childDef instanceof Model\DataObject\ClassDefinition\Data\CalculatedValue) {
                     $list[] = $childDef;

@@ -28,7 +28,6 @@ The `PimcoreCoreBundle` defines a default cache configuration which you can over
 
 pimcore:
     cache:
-        enabled:              true
         pool_service_id:      null
         default_lifetime:     2419200
         pools:
@@ -68,6 +67,7 @@ for further information).
  
 If you enable the `redis` cache configuration, the Redis cache will be used instead of the Doctrine one, even if Doctrine
 is enabled as well. 
+> **IMPORTANT!** It is crucial to test and verify your Redis configuration, if Pimcore is unable to connect to Redis, the entire system will stop working.
 
 If you want to use a custom cache pool, ignore the `pools` section (or disable both predefined pools) and set the `pool_service_id`
 entry to the service ID of your custom pool (needs to be defined as service on the service container). There are a couple
@@ -158,10 +158,10 @@ if(!$data = \Pimcore\Cache::load($cacheKey)) {
 
 #### Disable the Cache for a Single Request
 Sometimes it's useful to deactivate the cache for testing purposes for a single request. You 
-can do this by passing the URL parameter `nocache=true`. Note: This is only possible if you have 
+can do this by passing the URL parameter `pimcore_nocache=true`. Note: This is only possible if you have 
 enabled the `DEBUG MODE` in *Settings* > *System*
 
-For example: `http://www.pimcore.org/download?nocache=true` 
+For example: `http://www.pimcore.org/download?pimcore_nocache=true` 
 
 This will disable the entire cache, not only the output-cache. To disable only the output-cache 
 you can add this URL parameter: `?pimcore_outputfilters_disabled=true`

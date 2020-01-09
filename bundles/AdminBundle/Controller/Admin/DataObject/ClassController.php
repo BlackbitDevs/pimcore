@@ -87,7 +87,7 @@ class ClassController extends AdminController implements EventedControllerInterf
      */
     public function getTreeAction(Request $request)
     {
-        $defaultIcon = '/bundles/pimcoreadmin/img/flat-color-icons/timeline.svg';
+        $defaultIcon = '/bundles/pimcoreadmin/img/flat-color-icons/class.svg';
 
         $classesList = new DataObject\ClassDefinition\Listing();
         $classesList->setOrderKey('name');
@@ -435,13 +435,13 @@ class ClassController extends AdminController implements EventedControllerInterf
     }
 
     /**
-     * @param $name
+     * @param string $name
      *
-     * @return mixed
+     * @return string
      */
     protected function correctClassname($name)
     {
-        $name = preg_replace('/[^a-zA-Z0-9]+/', '', $name);
+        $name = preg_replace('/[^a-zA-Z0-9_]+/', '', $name);
         $name = preg_replace('/^[0-9]+/', '', $name);
 
         return $name;
@@ -524,7 +524,7 @@ class ClassController extends AdminController implements EventedControllerInterf
         $list->setCondition('classId = ' . $list->quote($classId));
         $list = $list->load();
         $result = [];
-        /** @var $item DataObject\ClassDefinition\CustomLayout */
+        /** @var DataObject\ClassDefinition\CustomLayout $item */
         foreach ($list as $item) {
             $result[] = [
                 'id' => $item->getId(),
@@ -814,15 +814,18 @@ class ClassController extends AdminController implements EventedControllerInterf
         }
         $object = DataObject\AbstractObject::getById($request->get('object_id'));
 
+        $currentLayoutId = $request->get('layoutId', null);
+        $user = \Pimcore\Tool\Admin::getCurrentUser();
+
         $groups = [];
-        /** @var $item DataObject\Fieldcollection\Definition */
+        /** @var DataObject\Fieldcollection\Definition $item */
         foreach ($list as $item) {
             if ($allowedTypes && !in_array($item->getKey(), $allowedTypes)) {
                 continue;
             }
 
             if ($item->getGroup()) {
-                if (!$groups[$item->getGroup()]) {
+                if (!isset($groups[$item->getGroup()])) {
                     $groups[$item->getGroup()] = [
                         'id' => 'group_' . $item->getKey(),
                         'text' => $item->getGroup(),
@@ -837,6 +840,10 @@ class ClassController extends AdminController implements EventedControllerInterf
                 if ($forObjectEditor) {
                     $itemLayoutDefinitions = $item->getLayoutDefinitions();
                     DataObject\Service::enrichLayoutDefinition($itemLayoutDefinitions, $object);
+
+                    if ($currentLayoutId == -1 && $user->isAdmin()) {
+                        DataObject\Service::createSuperLayout($itemLayoutDefinitions);
+                    }
                     $layoutDefinitions[$item->getKey()] = $itemLayoutDefinitions;
                 }
                 $groups[$item->getGroup()]['children'][] =
@@ -852,6 +859,11 @@ class ClassController extends AdminController implements EventedControllerInterf
                 if ($forObjectEditor) {
                     $itemLayoutDefinitions = $item->getLayoutDefinitions();
                     DataObject\Service::enrichLayoutDefinition($itemLayoutDefinitions, $object);
+
+                    if ($currentLayoutId == -1 && $user->isAdmin()) {
+                        DataObject\Service::createSuperLayout($itemLayoutDefinitions);
+                    }
+
                     $layoutDefinitions[$item->getKey()] = $itemLayoutDefinitions;
                 }
                 $definitions[] = [
@@ -901,7 +913,7 @@ class ClassController extends AdminController implements EventedControllerInterf
         if ($request->query->has('allowedTypes')) {
             $filteredList = [];
             $allowedTypes = explode(',', $request->get('allowedTypes'));
-            /** @var $type DataObject\Fieldcollection\Definition */
+            /** @var DataObject\Fieldcollection\Definition $type */
             foreach ($list as $type) {
                 if (in_array($type->getKey(), $allowedTypes)) {
                     $filteredList[] = $type;
@@ -1159,6 +1171,8 @@ class ClassController extends AdminController implements EventedControllerInterf
         $layoutDefinitions = [];
         $groups = [];
         $definitions = [];
+        $fieldname = null;
+        $className = null;
 
         if ($request->query->has('class_id') && $request->query->has('field_name')) {
             $classId = $request->get('class_id');
@@ -1167,11 +1181,10 @@ class ClassController extends AdminController implements EventedControllerInterf
             $className = $classDefinition->getName();
         }
 
-        /** @var $item DataObject\Objectbrick\Definition */
+        /** @var DataObject\Objectbrick\Definition $item */
         foreach ($list as $item) {
             if ($request->query->has('class_id') && $request->query->has('field_name')) {
                 $keep = false;
-                /** @var $type DataObject\Objectbrick\Definition */
                 $clsDefs = $item->getClassDefinitions();
                 if (!empty($clsDefs)) {
                     foreach ($clsDefs as $cd) {
@@ -1284,7 +1297,6 @@ class ClassController extends AdminController implements EventedControllerInterf
             $className = $classDefinition->getName();
 
             foreach ($list as $type) {
-                /** @var $type DataObject\Objectbrick\Definition */
                 $clsDefs = $type->getClassDefinitions();
                 if (!empty($clsDefs)) {
                     foreach ($clsDefs as $cd) {
@@ -1361,6 +1373,7 @@ class ClassController extends AdminController implements EventedControllerInterf
         foreach ($json as $groupName => $group) {
             foreach ($group as $groupItem) {
                 $displayName = null;
+                $icon = null;
 
                 if ($groupName == 'class') {
                     $name = $groupItem['name'];
@@ -1369,9 +1382,9 @@ class ClassController extends AdminController implements EventedControllerInterf
                     $className = $groupItem['className'];
 
                     $layoutData = ['className' => $className, 'name' => $groupItem['name']];
-                    $name = json_encode($layoutData);
+                    $name = base64_encode(json_encode($layoutData));
                     $displayName = $className . ' / ' . $groupItem['name'];
-                    $icon = 'database_lightning';
+                    $icon = 'custom_views';
                 } else {
                     if ($groupName == 'objectbrick') {
                         $icon = 'objectbricks';
@@ -1437,9 +1450,7 @@ class ClassController extends AdminController implements EventedControllerInterf
 
                 return $this->adminJson(['success' => $success !== false]);
             } elseif ($type == 'objectbrick' && $item['key'] == $name) {
-                try {
-                    $brick = DataObject\Objectbrick\Definition::getByKey($name);
-                } catch (\Exception $e) {
+                if (!$brick = DataObject\Objectbrick\Definition::getByKey($name)) {
                     $brick = new DataObject\Objectbrick\Definition();
                     $brick->setKey($name);
                 }
@@ -1448,17 +1459,16 @@ class ClassController extends AdminController implements EventedControllerInterf
 
                 return $this->adminJson(['success' => $success !== false]);
             } elseif ($type == 'fieldcollection' && $item['key'] == $name) {
-                try {
-                    $fieldCollection = DataObject\Fieldcollection\Definition::getByKey($name);
-                } catch (\Exception $e) {
+                if (!$fieldCollection = DataObject\Fieldcollection\Definition::getByKey($name)) {
                     $fieldCollection = new DataObject\Fieldcollection\Definition();
                     $fieldCollection->setKey($name);
                 }
+
                 $success = DataObject\ClassDefinition\Service::importFieldCollectionFromJson($fieldCollection, json_encode($item), true);
 
                 return $this->adminJson(['success' => $success !== false]);
             } elseif ($type == 'customlayout') {
-                $layoutData = json_decode($data['name'], true);
+                $layoutData = json_decode(base64_decode($data['name']), true);
                 $className = $layoutData['className'];
                 $layoutName = $layoutData['name'];
 
@@ -1509,6 +1519,24 @@ class ClassController extends AdminController implements EventedControllerInterf
      */
 
     /**
+     * @Route("/bulk-export-prepare", methods={"POST"})
+     *
+     * @param Request $request
+     *
+     * @return Response
+     */
+    public function bulkExportPrepareAction(Request $request)
+    {
+        $data = $request->get('data');
+
+        Session::useSession(function (AttributeBagInterface $session) use ($data) {
+            $session->set('class_bulk_export_settings', $data);
+        }, 'pimcore_objects');
+
+        return $this->adminJson(['success' => true]);
+    }
+
+    /**
      * @Route("/bulk-export", methods={"GET"})
      *
      * @param Request $request
@@ -1523,10 +1551,13 @@ class ClassController extends AdminController implements EventedControllerInterf
         $fieldCollections = $fieldCollections->load();
 
         foreach ($fieldCollections as $fieldCollection) {
-            $key = $fieldCollection->key;
-            $fieldCollectionJson = json_decode(DataObject\ClassDefinition\Service::generateFieldCollectionJson($fieldCollection));
-            $fieldCollectionJson->key = $key;
-            $result['fieldcollection'][] = $fieldCollectionJson;
+            $result[] = [
+                'icon' => 'fieldcollection',
+                'checked' => true,
+                'type' => 'fieldcollection',
+                'name' => $fieldCollection->getKey(),
+                'displayName' => $fieldCollection->getKey()
+            ];
         }
 
         $classes = new DataObject\ClassDefinition\Listing();
@@ -1535,29 +1566,86 @@ class ClassController extends AdminController implements EventedControllerInterf
         $classes = $classes->load();
 
         foreach ($classes as $class) {
-            $data = Model\Webservice\Data\Mapper::map($class, '\\Pimcore\\Model\\Webservice\\Data\\ClassDefinition\\Out', 'out');
-            unset($data->fieldDefinitions);
-            $result['class'][] = $data;
+            $result[] = [
+                'icon' => 'class',
+                'checked' => true,
+                'type' => 'class',
+                'name' => $class->getName(),
+                'displayName' => $class->getName()
+            ];
         }
 
         $objectBricks = new DataObject\Objectbrick\Definition\Listing();
         $objectBricks = $objectBricks->load();
 
         foreach ($objectBricks as $objectBrick) {
-            $key = $objectBrick->key;
-            $objectBrickJson = json_decode(DataObject\ClassDefinition\Service::generateObjectBrickJson($objectBrick));
-            $objectBrickJson->key = $key;
-            $result['objectbrick'][] = $objectBrickJson;
+            $result[] = [
+                'icon' => 'objectbricks',
+                'checked' => true,
+                'type' => 'objectbrick',
+                'name' => $objectBrick->getKey(),
+                'displayName' => $objectBrick->getKey()
+            ];
         }
 
         $customLayouts = new DataObject\ClassDefinition\CustomLayout\Listing();
         $customLayouts = $customLayouts->load();
         foreach ($customLayouts as $customLayout) {
-            /** @var $customLayout DataObject\ClassDefinition\CustomLayout */
-            $classId = $customLayout->getClassId();
-            $class = DataObject\ClassDefinition::getById($classId);
-            $customLayout->className = $class->getName();
-            $result['customlayout'][] = $customLayout;
+            $class = DataObject\ClassDefinition::getById($customLayout->getClassId());
+            $displayName = $class->getName() . ' / ' .  $customLayout->getName();
+
+            $result[] = [
+                'icon' => 'custom_views',
+                'checked' => true,
+                'type' => 'customlayout',
+                'name' => $customLayout->getId(),
+                'displayName' => $displayName
+            ];
+        }
+
+        return new JsonResponse(['success' => true, 'data' => $result]);
+    }
+
+    /**
+     * @Route("/do-bulk-export", methods={"GET"})
+     *
+     * @param Request $request
+     *
+     * @return Response
+     */
+    public function doBulkExportAction(Request $request)
+    {
+        $session = Session::get('pimcore_objects');
+        $list = $session->get('class_bulk_export_settings');
+        $list = json_decode($list, true);
+        $result = [];
+
+        foreach ($list as $item) {
+            if ($item['type'] == 'fieldcollection') {
+                $fieldCollection = DataObject\Fieldcollection\Definition::getByKey($item['name']);
+                $key = $fieldCollection->getKey();
+                $fieldCollectionJson = json_decode(DataObject\ClassDefinition\Service::generateFieldCollectionJson($fieldCollection));
+                $fieldCollectionJson->key = $key;
+                $result['fieldcollection'][] = $fieldCollectionJson;
+            } elseif ($item['type'] == 'class') {
+                $class = DataObject\ClassDefinition::getByName($item['name']);
+                $data = Model\Webservice\Data\Mapper::map($class, '\\Pimcore\\Model\\Webservice\\Data\\ClassDefinition\\Out', 'out');
+                unset($data->fieldDefinitions);
+                $result['class'][] = $data;
+            } elseif ($item['type'] == 'objectbrick') {
+                $objectBrick = DataObject\Objectbrick\Definition::getByKey($item['name']);
+                $key = $objectBrick->getKey();
+                $objectBrickJson = json_decode(DataObject\ClassDefinition\Service::generateObjectBrickJson($objectBrick));
+                $objectBrickJson->key = $key;
+                $result['objectbrick'][] = $objectBrickJson;
+            } elseif ($item['type'] == 'customlayout') {
+                /** @var DataObject\ClassDefinition\CustomLayout $customLayout */
+                $customLayout = DataObject\ClassDefinition\CustomLayout::getById($item['name']);
+                $classId = $customLayout->getClassId();
+                $class = DataObject\ClassDefinition::getById($classId);
+                $customLayout->className = $class->getName();
+                $result['customlayout'][] = $customLayout;
+            }
         }
 
         $result = json_encode($result, JSON_PRETTY_PRINT);
@@ -1659,9 +1747,43 @@ class ClassController extends AdminController implements EventedControllerInterf
     }
 
     /**
-     * @Route("/suggest-class-identifier")
+     * @Route("/get-icons", methods={"GET"})
      *
      * @param Request $request
+     *
+     * @return Response
+     */
+    public function getIconsAction(Request $request)
+    {
+        $classId = $request->get('classId');
+
+        $path = '/bundles/pimcoreadmin/img/object-icons';
+        $icons = rscandir(PIMCORE_WEB_ROOT . $path);
+
+        foreach ($icons as &$icon) {
+            $icon = str_replace(PIMCORE_WEB_ROOT, '', $icon);
+        }
+
+        $event = new GenericEvent($this, [
+            'icons' => $icons,
+            'classId' => $classId
+        ]);
+        \Pimcore::getEventDispatcher()->dispatch(AdminEvents::CLASS_OBJECT_ICONS_PRE_SEND_DATA, $event);
+        $icons = $event->getArgument('icons');
+
+        $result = [];
+        foreach ($icons as $icon) {
+            $result[] = [
+                'text' => "<img src='{$icon}'>",
+                'value' => $icon
+            ];
+        }
+
+        return $this->adminJson($result);
+    }
+
+    /**
+     * @Route("/suggest-class-identifier")
      *
      * @return Response
      */
@@ -1699,7 +1821,7 @@ class ClassController extends AdminController implements EventedControllerInterf
         $existingIds = [];
         $existingNames = [];
 
-        /** @var $item DataObject\ClassDefinition\CustomLayout */
+        /** @var DataObject\ClassDefinition\CustomLayout $item */
         foreach ($list as $item) {
             $existingIds[] = $item->getId();
             if ($item->getClassId() == $classId) {

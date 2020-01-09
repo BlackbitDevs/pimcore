@@ -18,14 +18,13 @@
 namespace Pimcore\Model\Document\Hardlink\Wrapper;
 
 use Pimcore\Model;
-use Pimcore\Model\Element;
 
 /**
  * @method \Pimcore\Model\Document\Hardlink\Dao getDao()
  */
 class Link extends Model\Document\Link implements Model\Document\Hardlink\Wrapper\WrapperInterface
 {
-    use Model\Document\Hardlink\Wrapper, Element\ChildsCompatibilityTrait;
+    use Model\Document\Hardlink\Wrapper;
 
     public function getHref()
     {
@@ -43,7 +42,7 @@ class Link extends Model\Document\Link implements Model\Document\Hardlink\Wrappe
                         $c->setPath($hardLink->getPath());
                         $c->setKey($hardLink->getKey());
                     } else {
-                        $c->setPath(preg_replace('@^' . preg_quote($hardLink->getSourceDocument()->getRealFullpath()) . '@', $hardLink->getRealFullpath(), $c->getRealPath()));
+                        $c->setPath(preg_replace('@^' . preg_quote($hardLink->getSourceDocument()->getRealFullpath(), '@') . '@', $hardLink->getRealFullpath(), $c->getRealPath()));
                     }
 
                     $this->setObject($c);

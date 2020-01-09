@@ -19,6 +19,9 @@ namespace Pimcore\Model\Webservice\Data;
 
 use Pimcore\Model;
 
+/**
+ * @deprecated
+ */
 class ClassDefinition extends Model\Webservice\Data
 {
     /**
@@ -98,6 +101,11 @@ class ClassDefinition extends Model\Webservice\Data
      * @var bool
      */
     public $showVariants = false;
+
+    /**
+     * @var bool
+     */
+    public $cacheRawRelationData = false;
 
     /**
      * @var array

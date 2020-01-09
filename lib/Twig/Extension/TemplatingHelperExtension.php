@@ -19,12 +19,14 @@ namespace Pimcore\Twig\Extension;
 
 use Pimcore\Templating\PhpEngine;
 use Symfony\Component\Templating\Helper\HelperInterface;
+use Twig\Extension\AbstractExtension;
+use Twig\TwigFunction;
 
 /**
  * Delegates calls to PHP templating helpers. Use this only with templating helpers which do not rely
  * on PHP rendering!
  */
-class TemplatingHelperExtension extends \Twig_Extension
+class TemplatingHelperExtension extends AbstractExtension
 {
     /**
      * @var PhpEngine
@@ -48,8 +50,10 @@ class TemplatingHelperExtension extends \Twig_Extension
             'headStyle' => 'pimcore_head_style',
             'headTitle' => 'pimcore_head_title',
             'inlineScript' => 'pimcore_inline_script',
+            'breachAttackRandomContent' => 'pimcore_breach_attack_random_content',
             'placeholder' => 'pimcore_placeholder',
             'cache' => 'pimcore_cache',
+            'device' => 'pimcore_device',
             'pimcoreUrl' => [
                 'name' => 'pimcore_url',
                 'is_safe' => null
@@ -80,10 +84,23 @@ class TemplatingHelperExtension extends \Twig_Extension
                 return $this->callHelper($helperName, func_get_args());
             };
 
-            $functions[] = new \Twig_Function($functionName, $callable, $options);
+            $functions[] = new TwigFunction($functionName, $callable, $options);
         }
 
         return $functions;
+
+        // those are just for auto-complete, not nice, but works ;-)
+        new TwigFunction('pimcore_head_link');
+        new TwigFunction('pimcore_head_meta');
+        new TwigFunction('pimcore_head_script');
+        new TwigFunction('pimcore_head_style');
+        new TwigFunction('pimcore_head_title');
+        new TwigFunction('pimcore_inline_script');
+        new TwigFunction('pimcore_placeholder');
+        new TwigFunction('pimcore_cache');
+        new TwigFunction('pimcore_device');
+        new TwigFunction('pimcore_url');
+        new TwigFunction('pimcore_breach_attack_random_content');
     }
 
     /**

@@ -474,7 +474,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @param $translations
+     * @param array $translations
      *
      * @return array
      */
@@ -493,17 +493,16 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @param $joins
-     * @param $list
-     * @param $tableName
-     * @param $filters
+     * @param array $joins
+     * @param Translation\AbstractTranslation $list
+     * @param string $tableName
+     * @param array $filters
      */
     protected function extendTranslationQuery($joins, $list, $tableName, $filters)
     {
         if ($joins) {
             $list->onCreateQuery(
                 function (\Pimcore\Db\ZendCompatibility\QueryBuilder $select) use (
-                    $list,
                     $joins,
                     $tableName,
                     $filters
@@ -544,7 +543,7 @@ class TranslationController extends AdminController
 
     /**
      * @param Request $request
-     * @param $tableName
+     * @param string $tableName
      * @param bool $languageMode
      *
      * @return array|null|string
@@ -569,15 +568,18 @@ class TranslationController extends AdminController
                 $field = null;
                 $value = null;
 
-                if (!$languageMode && in_array($filter[$propertyField], $validLanguages)
-                    || $languageMode && !in_array($filter[$propertyField], $validLanguages)) {
+                $fieldname = $filter[$propertyField];
+                if (in_array(ltrim($fieldname, '_'), $validLanguages)) {
+                    $fieldname = ltrim($fieldname, '_');
+                }
+
+                if (!$languageMode && in_array($fieldname, $validLanguages)
+                    || $languageMode && !in_array($fieldname, $validLanguages)) {
                     continue;
                 }
 
-                if ($languageMode) {
-                    $fieldname = $filter[$propertyField];
-                } else {
-                    $fieldname = $tableName . '.' . $filter[$propertyField];
+                if (!$languageMode) {
+                    $fieldname = $tableName . '.' . $fieldname;
                 }
 
                 if ($filter['type'] == 'string') {
@@ -603,9 +605,9 @@ class TranslationController extends AdminController
                     $condition = $field . ' ' . $operator . ' ' . $db->quote($value);
 
                     if ($languageMode) {
-                        $conditions[$filter[$propertyField]] = $condition;
+                        $conditions[$fieldname] = $condition;
                         $joins[] = [
-                            'language' => $filter[$propertyField],
+                            'language' => $fieldname,
                         ];
                     } else {
                         $conditionFilters[] = $condition;
@@ -691,6 +693,8 @@ class TranslationController extends AdminController
                     'type' => $element['type'],
                 ];
 
+                $el = null;
+
                 if ($element['children']) {
                     $el = Element\Service::getElementById($element['type'], $element['id']);
                     $baseClass = ELement\Service::getBaseClassNameForElement($element['type']);
@@ -709,13 +713,35 @@ class TranslationController extends AdminController
                         ($el instanceof DataObject\AbstractObject ? 'o_' : '') . 'path LIKE ?',
                         [$el->getRealFullPath() . ($el->getRealFullPath() != '/' ? '/' : '') . '%']
                     );
-                    $idList = $list->loadIdList();
+                    $childs = $list->load();
 
-                    foreach ($idList as $id) {
-                        $elements[$element['type'] . '_' . $id] = [
-                            'id' => $id,
+                    foreach ($childs as $child) {
+                        $childId = $child->getId();
+                        $elements[$element['type'] . '_' . $childId] = [
+                            'id' => $childId,
                             'type' => $element['type'],
                         ];
+                        if ($element['relations']) {
+                            $childDependencies = $child->getDependencies()->getRequires();
+                            foreach ($childDependencies as $cd) {
+                                if ($cd['type'] == "object" || $cd['type'] == "document") {
+                                    $elements[$cd['type'] . '_' . $cd['id']] = $cd;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($element['relations']) {
+                    if (!$el instanceof Element\AbstractElement) {
+                        $el = Element\Service::getElementById($element['type'], $element['id']);
+                    }
+
+                    $dependencies = $el->getDependencies()->getRequires();
+                    foreach ($dependencies as $dependency) {
+                        if ($dependency['type'] == "object" || $dependency['type'] == "document") {
+                            $elements[$dependency['type'] . '_' . $dependency['id']] = $dependency;
+                        }
                     }
                 }
             }
@@ -891,7 +917,6 @@ class TranslationController extends AdminController
      */
     public function wordExportAction(Request $request)
     {
-        error_reporting(0);
         ini_set('display_errors', 'off');
 
         $id = $this->sanitzeExportId((string)$request->get('id'));
@@ -971,7 +996,6 @@ class TranslationController extends AdminController
                     );
                     $html = preg_replace('/<!--(.*)-->/Uis', '', $html);
 
-                    include_once(PIMCORE_PATH . '/lib/simple_html_dom.php');
                     $dom = str_get_html($html);
                     if ($dom) {
 
@@ -1042,8 +1066,10 @@ class TranslationController extends AdminController
                 } elseif ($element instanceof DataObject\Concrete) {
                     $hasContent = false;
 
-                    if ($fd = $element->getClass()->getFieldDefinition('localizedfields')) {
-                        $definitions = $fd->getFielddefinitions();
+                    /** @var DataObject\ClassDefinition\Data\Localizedfields|null $fd */
+                    $fd = $element->getClass()->getFieldDefinition('localizedfields');
+                    if ($fd) {
+                        $definitions = $fd->getFieldDefinitions();
 
                         $locale = str_replace('-', '_', $source);
                         if (!Tool::isValidLanguage($locale)) {

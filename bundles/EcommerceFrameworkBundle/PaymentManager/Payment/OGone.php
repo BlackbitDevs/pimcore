@@ -15,10 +15,14 @@
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment;
 
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\Currency;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\IStatus;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderAgentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Status;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPrice;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\StatusInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentRequest\AbstractRequest;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\FormResponse;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\StartPaymentResponseInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\Price;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -35,7 +39,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  *
  * @package Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment
  */
-class OGone extends AbstractPayment
+class OGone extends AbstractPayment implements \Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\PaymentInterface
 {
     private static $OGONE_SERVER_URL_TEST = 'https://secure.ogone.com/ncol/test/orderstandard_utf8.asp';
     private static $OGONE_SERVER_URL_LIVE = 'https://secure.ogone.com/ncol/prod/orderstandard_utf8.asp';
@@ -162,21 +166,21 @@ class OGone extends AbstractPayment
     /**
      * Start payment and build form, including fingerprint for Ogone.
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param array $config
      *
      * @return FormBuilderInterface
      *
      * @throws \Exception
      */
-    public function initPayment(IPrice $price, array $config)
+    public function initPayment(PriceInterface $price, array $config)
     {
         //form name needs to be null in order to make sure the element names are correct - and not FORMNAME[ELEMENTNAME]
         $form = $this->formFactory->createNamedBuilder(null, FormType::class, [], [
             'attr' => ['id' => 'payment_ogone_form']
         ]);
 
-        /** @var $paymentInfo \OnlineShop\Framework\Model\AbstractPaymentInformation $paymentInfo * */
+        /** @var \OnlineShop\Framework\Model\AbstractPaymentInformation $paymentInfo * */
         $paymentInfo = $config['paymentInfo'];
         //$order = $paymentInfo->getObject();
 
@@ -217,11 +221,21 @@ class OGone extends AbstractPayment
     }
 
     /**
+     * @inheritDoc
+     */
+    public function startPayment(OrderAgentInterface $orderAgent, PriceInterface $price, AbstractRequest $config): StartPaymentResponseInterface
+    {
+        $form = $this->initPayment($price, $config->asArray());
+
+        return new FormResponse($orderAgent->getOrder(), $form);
+    }
+
+    /**
      * Handles response of payment provider and creates payment status object. Fingerprint must match.
      *
      * @param array $response
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      */
@@ -263,7 +277,7 @@ class OGone extends AbstractPayment
             $orderId, //internal Payment ID
             $orderId, //paymentReference
             '',
-            !empty($orderId) && $state === 'success' ? IStatus::STATUS_AUTHORIZED : IStatus::STATUS_CANCELLED,
+            !empty($orderId) && $state === 'success' ? StatusInterface::STATUS_AUTHORIZED : StatusInterface::STATUS_CANCELLED,
             [
                 'ogone_amount' => (string)$price,
                 'ogone_paymentId' => $oGonePaymentId,
@@ -409,14 +423,14 @@ class OGone extends AbstractPayment
      *  if price is given, recurPayment command is executed
      *  if no price is given, amount from authorized Data is used and deposit command is executed
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      */
-    public function executeDebit(IPrice $price = null, $reference = null)
+    public function executeDebit(PriceInterface $price = null, $reference = null)
     {
         throw new NotImplementedException('executeDebit is not implemented yet.');
     }
@@ -424,15 +438,15 @@ class OGone extends AbstractPayment
     /**
      * Executes credit
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      * @param $transactionId
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      */
-    public function executeCredit(IPrice $price, $reference, $transactionId)
+    public function executeCredit(PriceInterface $price, $reference, $transactionId)
     {
         throw new NotImplementedException('executeCredit is not implemented yet.');
     }

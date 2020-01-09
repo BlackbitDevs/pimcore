@@ -20,6 +20,9 @@ namespace Pimcore\Model\Webservice\Data;
 use Pimcore\Model;
 use Pimcore\Tool;
 
+/**
+ * @deprecated
+ */
 abstract class Mapper
 {
     /**
@@ -84,7 +87,7 @@ abstract class Mapper
      */
     public static function map($object, $apiclass, $type, $options = null)
     {
-        if ($object instanceof \Zend_Date || $object instanceof \DateTimeInterface) {
+        if ($object instanceof \DateTimeInterface) {
             $object = $object->getTimestamp();
         } elseif (is_object($object)) {
             if (Tool::classExists($apiclass)) {

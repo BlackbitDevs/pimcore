@@ -18,7 +18,6 @@
 namespace Pimcore\Model\DataObject\QuantityValue;
 
 use Pimcore\Cache;
-use Pimcore\Logger;
 use Pimcore\Model;
 
 /**
@@ -49,7 +48,7 @@ class Unit extends Model\AbstractModel
     public $longname;
 
     /**
-     * @var string
+     * @var int
      */
     public $baseunit;
 
@@ -68,40 +67,52 @@ class Unit extends Model\AbstractModel
      */
     public $conversionOffset;
 
+    /** @var string */
+    public $converter;
+
     /**
      * @param string $abbreviation
      *
-     * @return Unit
+     * @return self|null
      */
     public static function getByAbbreviation($abbreviation)
     {
-        $unit = new self();
-        $unit->getDao()->getByAbbreviation($abbreviation);
+        try {
+            $unit = new self();
+            $unit->getDao()->getByAbbreviation($abbreviation);
 
-        return $unit;
+            return $unit;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
      * @param string $reference
      *
-     * @return Unit
+     * @return self|null
      */
     public static function getByReference($reference)
     {
-        $unit = new self();
-        $unit->getDao()->getByReference($reference);
+        try {
+            $unit = new self();
+            $unit->getDao()->getByReference($reference);
 
-        return $unit;
+            return $unit;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
      * @param string $id
      *
-     * @return Unit
+     * @return self|null
      */
     public static function getById($id)
     {
         try {
+            $table = null;
             if (Cache\Runtime::isRegistered(self::CACHE_KEY)) {
                 $table = Cache\Runtime::get(self::CACHE_KEY);
             }
@@ -117,7 +128,7 @@ class Unit extends Model\AbstractModel
                 $table = [];
                 $list = new Model\DataObject\QuantityValue\Unit\Listing();
                 $list = $list->load();
-                /** @var $item Model\DataObject\QuantityValue\Unit */
+                /** @var Model\DataObject\QuantityValue\Unit $item */
                 foreach ($list as $item) {
                     $table[$item->getId()] = $item;
                 }
@@ -126,12 +137,14 @@ class Unit extends Model\AbstractModel
                 Cache\Runtime::set(self::CACHE_KEY, $table);
             }
         } catch (\Exception $e) {
-            Logger::error($e);
+            return null;
         }
 
         if (isset($table[$id])) {
             return $table[$id];
         }
+
+        return null;
     }
 
     /**
@@ -181,12 +194,19 @@ class Unit extends Model\AbstractModel
 
     public function setBaseunit($baseunit)
     {
+        if ($baseunit instanceof self) {
+            $baseunit = $baseunit->getId();
+        }
         $this->baseunit = $baseunit;
     }
 
     public function getBaseunit()
     {
-        return $this->baseunit;
+        if ($this->baseunit) {
+            return self::getById($this->baseunit);
+        }
+
+        return null;
     }
 
     public function setFactor($factor)
@@ -259,5 +279,21 @@ class Unit extends Model\AbstractModel
     public function setConversionOffset($conversionOffset)
     {
         $this->conversionOffset = $conversionOffset;
+    }
+
+    /**
+     * @return string
+     */
+    public function getConverter()
+    {
+        return $this->converter;
+    }
+
+    /**
+     * @param string $converter
+     */
+    public function setConverter($converter)
+    {
+        $this->converter = (string)$converter;
     }
 }

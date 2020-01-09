@@ -19,7 +19,7 @@ namespace Pimcore\Model\Document\Tag;
 
 use Pimcore\Bundle\CoreBundle\EventListener\Frontend\FullPageCacheListener;
 use Pimcore\Document\Tag\Block\BlockName;
-use Pimcore\Model;
+use Pimcore\Http\Request\Resolver\OutputTimestampResolver;
 use Pimcore\Tool\HtmlUtils;
 
 /**
@@ -88,7 +88,7 @@ class Scheduledblock extends Block implements BlockInterface
                 return [$this->cachedCurrentElement];
             }
 
-            $outputTimestampResolver = \Pimcore::getContainer()->get('Pimcore\Http\Request\Resolver\OutputTimestampResolver');
+            $outputTimestampResolver = \Pimcore::getContainer()->get(OutputTimestampResolver::class);
             $outputTimestamp = $outputTimestampResolver->getOutputTimestamp();
 
             $currentElement = null;
@@ -243,7 +243,7 @@ class Scheduledblock extends Block implements BlockInterface
      */
     public function getElements()
     {
-        $document = Model\Document\Page::getById($this->getDocumentId());
+        $document = $this->getDocument();
 
         $parentBlockNames = $this->getParentBlockNames();
         $parentBlockNames[] = $this->getName();

@@ -15,36 +15,37 @@
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\FactFinder;
 
 use Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\AbstractFilterType;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\IProductList;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\ProductListInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinitionType;
 
 class MultiSelect extends \Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\MultiSelect
 {
     /**
      * @param AbstractFilterDefinitionType $filterDefinition
-     * @param IProductList                 $productList
+     * @param ProductListInterface                 $productList
      */
-    public function prepareGroupByValues(AbstractFilterDefinitionType $filterDefinition, IProductList $productList)
+    public function prepareGroupByValues(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList)
     {
     }
 
     /**
      * @param AbstractFilterDefinitionType $filterDefinition
-     * @param IProductList                 $productList
+     * @param ProductListInterface                 $productList
      * @param array                                             $currentFilter
      * @param array                                             $params
      * @param bool                                              $isPrecondition
      *
      * @return mixed
      */
-    public function addCondition(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter, $params, $isPrecondition = false)
+    public function addCondition(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter, $params, $isPrecondition = false)
     {
         // init
         $field = $this->getField($filterDefinition);
-        $value = $params[$field];
+        $value = $params[$field] ?? null;
+        $isReload = $params['is_reload'] ?? null;
 
         // set defaults
-        if (empty($value) && !$params['is_reload'] && ($preSelect = $this->getPreSelect($filterDefinition))) {
+        if (empty($value) && !$isReload && ($preSelect = $this->getPreSelect($filterDefinition))) {
             $value = explode(',', $preSelect);
         } elseif (!empty($value) && in_array(AbstractFilterType::EMPTY_STRING, $value)) {
             $value = null;

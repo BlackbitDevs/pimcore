@@ -14,11 +14,11 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\Order\Listing\Filter;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\IOrderList;
-use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\IOrderListFilter;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderListFilterInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderListInterface;
 use Pimcore\Model\Element\ElementInterface;
 
-class CustomerObject implements IOrderListFilter
+class CustomerObject implements OrderListFilterInterface
 {
     /**
      * @var ElementInterface
@@ -26,7 +26,7 @@ class CustomerObject implements IOrderListFilter
     protected $customer;
 
     /**
-     * @param string $paymentState
+     * @param ElementInterface $customer
      */
     public function __construct(ElementInterface $customer)
     {
@@ -34,11 +34,11 @@ class CustomerObject implements IOrderListFilter
     }
 
     /**
-     * @param IOrderList $orderList
+     * @param OrderListInterface $orderList
      *
-     * @return IOrderListFilter
+     * @return OrderListFilterInterface
      */
-    public function apply(IOrderList $orderList)
+    public function apply(OrderListInterface $orderList)
     {
         $orderList->addCondition('order.customer__id = ?', $this->customer->getId());
 

@@ -57,7 +57,15 @@ pimcore.settings.metadata.predefined = Class.create({
         this.store = pimcore.helpers.grid.buildDefaultStore(
             url,
             [
-                'id', {name: 'name', allowBlank: false},'description','type',
+                'id',
+                {
+                    name: 'name',
+                    allowBlank: false,
+                    convert: function (v, r) {
+                        return v.replace(/[~]/g, "---");
+                    }
+                },
+                'description','type',
                 {name: 'data',
                     convert: function (v, r) {
                         if (r.data.type == "date" && v && !(v instanceof Date)) {
@@ -264,18 +272,21 @@ pimcore.settings.metadata.predefined = Class.create({
                 },
                 forceFit: true
             },
-            tbar: [
-                {
-                    text: t('add'),
-                    handler: this.onAdd.bind(this),
-                    iconCls: "pimcore_icon_add"
-                },"->",{
-                  text: t("filter") + "/" + t("search"),
-                  xtype: "tbtext",
-                  style: "margin: 0 10px 0 0;"
-                },
-                this.filterField
-            ]
+            tbar: {
+                cls: 'pimcore_main_toolbar',
+                items: [
+                    {
+                        text: t('add'),
+                        handler: this.onAdd.bind(this),
+                        iconCls: "pimcore_icon_add"
+                    },"->",{
+                        text: t("filter") + "/" + t("search"),
+                        xtype: "tbtext",
+                        style: "margin: 0 10px 0 0;"
+                    },
+                    this.filterField
+                ]
+            }
         });
 
         this.grid.on("viewready", this.updateRows.bind(this));

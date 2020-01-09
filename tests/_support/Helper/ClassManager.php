@@ -87,12 +87,9 @@ class ClassManager extends Module
      */
     public function getFieldcollection($name)
     {
-        try {
-            if ($fc = FieldcollectionDefinition::getByKey($name)) {
-                return $fc;
-            }
-        } catch (\Exception $e) {
-        }
+        $fc = FieldcollectionDefinition::getByKey($name);
+
+        return $fc;
     }
 
     /**
@@ -141,12 +138,9 @@ class ClassManager extends Module
      */
     public function getObjectbrick($name)
     {
-        try {
-            if ($ob = ObjectbrickDefinition::getByKey($name)) {
-                return $ob;
-            }
-        } catch (\Exception $e) {
-        }
+        $ob = ObjectbrickDefinition::getByKey($name);
+
+        return $ob;
     }
 
     /**
@@ -207,13 +201,33 @@ class ClassManager extends Module
     }
 
     /**
-     * Resolve filename to reource path
+     * Saves JSON to file
      *
      * @param string $filename
+     * @param string $json
      *
      * @return string
      */
-    protected function resolveFilePath($filename)
+    public function saveJson($filename, $json)
+    {
+        $this->assertNotEmpty($json);
+
+        $path = $this->resolveFilePath($filename, false);
+
+        file_put_contents($path, $json);
+        return $path;
+    }
+
+
+    /**
+     * Resolve filename to reource path
+     *
+     * @param string $filename
+     * @param boolean $assert
+     *
+     * @return string
+     */
+    protected function resolveFilePath($filename, $assert = true)
     {
         $fs = new Filesystem();
         $path = $filename;
@@ -223,7 +237,9 @@ class ClassManager extends Module
             $path = __DIR__ . '/../Resources/objects/' . $filename;
         }
 
-        $this->assertFileExists($path);
+        if ($assert) {
+            $this->assertFileExists($path);
+        }
 
         return $path;
     }

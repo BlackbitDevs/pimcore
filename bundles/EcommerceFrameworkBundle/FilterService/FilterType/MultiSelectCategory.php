@@ -14,12 +14,12 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\IProductList;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\ProductListInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinitionType;
 
 class MultiSelectCategory extends AbstractFilterType
 {
-    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter)
+    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter)
     {
         $rawValues = $productList->getGroupByValues($filterDefinition->getField(), true);
         $values = [];
@@ -35,7 +35,7 @@ class MultiSelectCategory extends AbstractFilterType
             $explode = explode(',', $v['value']);
             foreach ($explode as $e) {
                 if (!empty($e) && (empty($availableRelations) || $availableRelations[$e] === true)) {
-                    if ($values[$e]) {
+                    if (!empty($values[$e])) {
                         $count = $values[$e]['count'] + $v['count'];
                     } else {
                         $count = $v['count'];
@@ -56,13 +56,14 @@ class MultiSelectCategory extends AbstractFilterType
         ]);
     }
 
-    public function addCondition(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter, $params, $isPrecondition = false)
+    public function addCondition(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter, $params, $isPrecondition = false)
     {
-        $value = $params[$filterDefinition->getField()];
+        $value = $params[$filterDefinition->getField()] ?? null;
+        $isReload = $params['is_reload'] ?? null;
 
         if ($value == AbstractFilterType::EMPTY_STRING) {
             $value = null;
-        } elseif (empty($value) && !$params['is_reload']) {
+        } elseif (empty($value) && !$isReload) {
             $value = $filterDefinition->getPreSelect();
         }
 

@@ -14,19 +14,20 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Config\IFindologicConfig;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Config\FindologicConfigInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractCategory;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IIndexable;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Model\IndexableInterface;
 use Pimcore\Db\ConnectionInterface;
 use Pimcore\Logger;
 use Pimcore\Model\DataObject\Concrete;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @property IFindologicConfig $tenantConfig
+ * @property FindologicConfigInterface $tenantConfig
  *
- * @method IFindologicConfig getTenantConfig()
+ * @method FindologicConfigInterface getTenantConfig()
  */
-class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IBatchProcessingWorker
+class DefaultFindologic extends AbstractMockupCacheWorker implements WorkerInterface, BatchProcessingWorkerInterface
 {
     const STORE_TABLE_NAME = 'ecommerceframework_productindex_store_findologic';
     const EXPORT_TABLE_NAME = 'ecommerceframework_productindex_export_findologic';
@@ -46,9 +47,9 @@ class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IB
      */
     protected $batchData;
 
-    public function __construct(IFindologicConfig $tenantConfig, ConnectionInterface $db)
+    public function __construct(FindologicConfigInterface $tenantConfig, ConnectionInterface $db, EventDispatcherInterface $eventDispatcher)
     {
-        parent::__construct($tenantConfig, $db);
+        parent::__construct($tenantConfig, $db, $eventDispatcher);
     }
 
     /**
@@ -64,11 +65,11 @@ class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IB
     /**
      * deletes given element from index
      *
-     * @param IIndexable $object
+     * @param IndexableInterface $object
      *
      * @return void
      */
-    public function deleteFromIndex(IIndexable $object)
+    public function deleteFromIndex(IndexableInterface $object)
     {
         $this->doDeleteFromIndex($object->getId(), $object);
     }
@@ -76,11 +77,11 @@ class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IB
     /**
      * updates given element in index
      *
-     * @param IIndexable $object
+     * @param IndexableInterface $object
      *
      * @return void
      */
-    public function updateIndex(IIndexable $object)
+    public function updateIndex(IndexableInterface $object)
     {
         if (!$this->tenantConfig->isActive($object)) {
             Logger::info("Tenant {$this->name} is not active.");
@@ -95,8 +96,9 @@ class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IB
     /**
      * @param      $objectId
      * @param null $data
+     * @param null $metadata
      */
-    protected function doUpdateIndex($objectId, $data = null)
+    protected function doUpdateIndex($objectId, $data = null, $metadata = null)
     {
         $xml = $this->createXMLElement();
 
@@ -260,7 +262,7 @@ class DefaultFindologic extends AbstractMockupCacheWorker implements IWorker, IB
     /**
      * @param int $objectId
      */
-    protected function doDeleteFromIndex($objectId, IIndexable $object = null)
+    protected function doDeleteFromIndex($objectId, IndexableInterface $object = null)
     {
         $this->db->query(sprintf('DELETE FROM %1$s WHERE id = %2$d', $this->getExportTableName(), $objectId));
         $this->db->query(sprintf('DELETE FROM %1$s WHERE o_id = %2$d', $this->getStoreTableName(), $objectId));

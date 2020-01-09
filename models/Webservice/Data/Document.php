@@ -20,6 +20,9 @@ namespace Pimcore\Model\Webservice\Data;
 use Pimcore\Model;
 use Pimcore\Model\Webservice;
 
+/**
+ * @deprecated
+ */
 abstract class Document extends Model\Webservice\Data
 {
     /**
@@ -68,6 +71,11 @@ abstract class Document extends Model\Webservice\Data
     public $notes;
 
     /**
+     * @var array
+     */
+    public $childs;
+
+    /**
      * @param $object
      * @param null $options
      */
@@ -77,9 +85,9 @@ abstract class Document extends Model\Webservice\Data
 
         $keys = get_object_vars($this);
         if (array_key_exists('childs', $keys)) {
-            if ($object->hasChilds()) {
+            if ($object->hasChildren()) {
                 $this->childs = [];
-                foreach ($object->getChilds() as $child) {
+                foreach ($object->getChildren() as $child) {
                     $item = new Webservice\Data\Document\Listing\Item();
                     $item->id = $child->getId();
                     $item->type = $child->getType();

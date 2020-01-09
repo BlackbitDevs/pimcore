@@ -43,7 +43,9 @@ class Dao extends Model\DataObject\Listing\Dao
      */
     protected $totalCount = 0;
 
-    /** @var Callback function */
+    /**
+     * @var \Closure
+     */
     protected $onCreateQueryCallback;
 
     /**
@@ -187,6 +189,9 @@ class Dao extends Model\DataObject\Listing\Dao
                     if ($this->model->getLocale()) {
                         if (Tool::isValidLanguage((string)$this->model->getLocale())) {
                             $language = (string)$this->model->getLocale();
+                        }
+                        if (!$language && DataObject\Localizedfield::isStrictMode()) {
+                            throw new \Exception("could not resolve locale: " . $this->model->getLocale());
                         }
                     }
 

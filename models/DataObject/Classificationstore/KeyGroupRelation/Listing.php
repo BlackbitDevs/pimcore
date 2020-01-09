@@ -22,25 +22,30 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\DataObject\Classificationstore\KeyGroupRelation\Listing\Dao getDao()
  * @method Model\DataObject\Classificationstore\KeyGroupRelation[] load()
+ * @method Model\DataObject\Classificationstore\KeyGroupRelation current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list.
-     *
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $list = [];
+    protected $list = null;
 
     /** @var bool */
     public $resolveGroupName;
 
+    public function __construct()
+    {
+        $this->list =& $this->data;
+    }
+
     /**
-     * @return array
+     * @return Model\DataObject\Classificationstore\KeyGroupRelation[]
      */
     public function getList()
     {
-        return $this->list;
+        return $this->getData();
     }
 
     /**
@@ -50,9 +55,7 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setList($theList)
     {
-        $this->list = $theList;
-
-        return $this;
+        return $this->setData($theList);
     }
 
     /**

@@ -14,20 +14,20 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\IProductList;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker\IWorker;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\ProductListInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\Worker\WorkerInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinitionType;
 
 class SelectFromMultiSelect extends AbstractFilterType
 {
-    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter)
+    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter)
     {
         $field = $this->getField($filterDefinition);
         $rawValues = $productList->getGroupByValues($field, true);
 
         $values = [];
         foreach ($rawValues as $v) {
-            $explode = explode(IWorker::MULTISELECT_DELIMITER, $v['value']);
+            $explode = explode(WorkerInterface::MULTISELECT_DELIMITER, $v['value']);
             foreach ($explode as $e) {
                 if (!empty($e)) {
                     if ($values[$e]) {
@@ -50,16 +50,17 @@ class SelectFromMultiSelect extends AbstractFilterType
         ]);
     }
 
-    public function addCondition(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter, $params, $isPrecondition = false)
+    public function addCondition(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter, $params, $isPrecondition = false)
     {
         $field = $this->getField($filterDefinition);
         $preSelect = $this->getPreSelect($filterDefinition);
 
-        $value = $params[$field];
+        $value = $params[$field] ?? null;
+        $isReload = $params['is_reload'] ?? null;
 
         if ($value == AbstractFilterType::EMPTY_STRING) {
             $value = null;
-        } elseif (empty($value) && !$params['is_reload']) {
+        } elseif (empty($value) && !$isReload) {
             $value = $preSelect;
         }
 
@@ -68,7 +69,7 @@ class SelectFromMultiSelect extends AbstractFilterType
         $currentFilter[$field] = $value;
 
         if (!empty($value)) {
-            $value = '%' . IWorker::MULTISELECT_DELIMITER  . $value .  IWorker::MULTISELECT_DELIMITER . '%';
+            $value = '%' . WorkerInterface::MULTISELECT_DELIMITER  . $value .  WorkerInterface::MULTISELECT_DELIMITER . '%';
             if ($isPrecondition) {
                 $productList->addCondition($field . ' LIKE ' . $productList->quote($value), 'PRECONDITION_' . $field);
             } else {

@@ -39,18 +39,23 @@ class Dao extends Model\Dao\AbstractDao
     protected $tableDefinitions = null;
 
     /**
+     * @var DataObject\Concrete\Dao\InheritanceHelper
+     */
+    protected $inheritanceHelper;
+
+    /**
      * @return string
      */
     public function getTableName()
     {
         $context = $this->model->getContext();
         if ($context) {
-            $containerType = $context['containerType'];
-            if ($containerType == 'fieldcollection') {
+            $containerType = $context['containerType'] ?? null;
+            if ($containerType === 'fieldcollection') {
                 $containerKey = $context['containerKey'];
 
                 return 'object_collection_'.$containerKey.'_localized_'.$this->model->getClass()->getId();
-            } elseif ($containerType == 'objectbrick') {
+            } elseif ($containerType === 'objectbrick') {
                 $containerKey = $context['containerKey'];
 
                 return 'object_brick_localized_'.$containerKey.'_'.$this->model->getClass()->getId();
@@ -93,17 +98,19 @@ class Dao extends Model\Dao\AbstractDao
         $object = $this->model->getObject();
         $validLanguages = Tool::getValidLanguages();
 
-        if ($context && $context['containerType'] == 'fieldcollection') {
+        if (isset($context['containerType']) && $context['containerType'] === 'fieldcollection') {
             $containerKey = $context['containerKey'];
             $container = DataObject\Fieldcollection\Definition::getByKey($containerKey);
-        } elseif ($context && $context['containerType'] == 'objectbrick') {
+        } elseif (isset($context['containerType']) && $context['containerType'] === 'objectbrick') {
             $containerKey = $context['containerKey'];
             $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
         } else {
             $container = $this->model->getClass();
         }
 
-        $fieldDefinitions = $container->getFielddefinition('localizedfields')->getFielddefinitions(
+        /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
+        $localizedfields = $container->getFieldDefinition('localizedfields');
+        $fieldDefinitions = $localizedfields->getFieldDefinitions(
             ['suppressEnrichment' => true]
         );
 
@@ -134,13 +141,10 @@ class Dao extends Model\Dao\AbstractDao
             }
 
             foreach ($fieldDefinitions as $fd) {
-                if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'save')) {
-                    if (!$fd instanceof CustomResourcePersistingInterface) {
-                        Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'save', CustomResourcePersistingInterface::class);
-                    }
+                if ($fd instanceof CustomResourcePersistingInterface) {
                     // for fieldtypes which have their own save algorithm eg. relational data types, ...
                     $context = $this->model->getContext() ? $this->model->getContext() : [];
-                    if ($context['containerType'] == 'fieldcollection' || $context['containerType'] == 'objectbrick') {
+                    if (isset($context['containerType']) && ($context['containerType'] === 'fieldcollection' || $context['containerType'] === 'objectbrick')) {
                         $context['subContainerType'] = 'localizedfield';
                     }
 
@@ -162,10 +166,7 @@ class Dao extends Model\Dao\AbstractDao
                         $fd->save($this->model, $childParams);
                     }
                 }
-                if ($fd instanceof ResourcePersistenceAwareInterface || method_exists($fd, 'getDataForResource')) {
-                    if (!$fd instanceof ResourcePersistenceAwareInterface) {
-                        Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForResource', ResourcePersistenceAwareInterface::class);
-                    }
+                if ($fd instanceof ResourcePersistenceAwareInterface) {
                     if (is_array($fd->getColumnType())) {
                         $insertDataArray = $fd->getDataForResource(
                             $this->model->getLocalizedValue($fd->getName(), $language, true),
@@ -263,10 +264,7 @@ class Dao extends Model\Dao\AbstractDao
                 }
 
                 foreach ($fieldDefinitions as $fd) {
-                    if ($fd instanceof QueryResourcePersistenceAwareInterface || method_exists($fd, 'getDataForQueryResource')) {
-                        if (!$fd instanceof QueryResourcePersistenceAwareInterface) {
-                            Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForQueryResource', QueryResourcePersistenceAwareInterface::class);
-                        }
+                    if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                         $key = $fd->getName();
 
                         // exclude untouchables if value is not an array - this means data has not been loaded
@@ -307,9 +305,11 @@ class Dao extends Model\Dao\AbstractDao
                                     if (is_array($insertData)) {
                                         $doInsert = false;
                                         foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                            if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                            $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                            $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                            if ($isEmpty && $oldDataValue == $parentDataValue) {
                                                 // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                            } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                            } elseif ($oldDataValue != $insertDataValue) {
                                                 $doInsert = true;
                                                 break;
                                             }
@@ -323,25 +323,31 @@ class Dao extends Model\Dao\AbstractDao
                                             );
                                         }
                                     } else {
-                                        if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                                        $oldDataValue = $oldData[$key] ?? null;
+                                        $parentDataValue = $parentData[$key] ?? null;
+                                        if ($isEmpty && $oldDataValue == $parentDataValue) {
                                             // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                        } elseif ($oldData[$key] != $insertData) {
+                                        } elseif ($oldDataValue != $insertData) {
                                             $this->inheritanceHelper->addRelationToCheck($key, $fd);
                                         }
                                     }
                                 } else {
                                     if (is_array($insertData)) {
                                         foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                            if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                            $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                            $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                            if ($isEmpty && $oldDataValue == $parentDataValue) {
                                                 // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                            } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                            } elseif ($oldDataValue != $insertDataValue) {
                                                 $this->inheritanceHelper->addFieldToCheck($insertDataKey, $fd);
                                             }
                                         }
                                     } else {
-                                        if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                                        $oldDataValue = $oldData[$key] ?? null;
+                                        $parentDataValue = $parentData[$key] ?? null;
+                                        if ($isEmpty && $oldDataValue == $parentDataValue) {
                                             // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                        } elseif ($oldData[$key] != $insertData) {
+                                        } elseif ($oldDataValue != $insertData) {
                                             // data changed, do check and update
                                             $this->inheritanceHelper->addFieldToCheck($key, $fd);
                                         }
@@ -360,7 +366,22 @@ class Dao extends Model\Dao\AbstractDao
                 $queryTable = $this->getQueryTableName().'_'.$language;
                 $this->db->insertOrUpdate($queryTable, $data);
                 if ($inheritanceEnabled) {
-                    $this->inheritanceHelper->doUpdate($object->getId(), true);
+                    $context = isset($params["context"]) ? $params["context"] : [];
+                    if ($context["containerType"] === "objectbrick") {
+                        $inheritanceRelationContext = [
+                            'ownertype' => 'localizedfield',
+                            'ownername' => '/objectbrick~' . $context['fieldname'] . '//localizedfield~localizedfield'
+                        ];
+                    } else {
+                        $inheritanceRelationContext = [
+                            'ownertype' => 'localizedfield',
+                            'ownername' => 'localizedfield'
+                        ];
+                    }
+                    $this->inheritanceHelper->doUpdate($object->getId(), true, [
+                        'language' => $language,
+                        'inheritanceRelationContext' => $inheritanceRelationContext
+                    ]);
                 }
                 $this->inheritanceHelper->resetFieldsToCheck();
             }
@@ -380,12 +401,13 @@ class Dao extends Model\Dao\AbstractDao
             return;
         }
         $object = $this->model->getObject();
+        $context = $this->model->getContext();
+        $container = null;
 
         try {
-            $context = $this->model->getContext();
-            if ($context && ($context['containerType'] == 'fieldcollection' || $context['containerType'] == 'objectbrick')) {
+            if (isset($context['containerType']) && ($context['containerType'] === 'fieldcollection' || $context['containerType'] === 'objectbrick')) {
                 $containerKey = $context['containerKey'];
-                if ($context['containerType'] == 'fieldcollection') {
+                if ($context['containerType'] === 'fieldcollection') {
                     $container = DataObject\Fieldcollection\Definition::getByKey($containerKey);
                 } else {
                     $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
@@ -396,7 +418,7 @@ class Dao extends Model\Dao\AbstractDao
             if ($deleteQuery) {
                 $id = $object->getId();
                 $tablename = $this->getTableName();
-                if ($context && $context['containerType'] == 'objectbrick') {
+                if (isset($context['containerType']) && $context['containerType'] === 'objectbrick') {
                     $this->db->delete($tablename, ['ooo_id' => $id, 'fieldname' => $context['fieldname']]);
                 } else {
                     $this->db->delete($tablename, ['ooo_id' => $id]);
@@ -411,18 +433,16 @@ class Dao extends Model\Dao\AbstractDao
                 }
             }
 
+            /** @var DataObject\ClassDefinition\Data\Localizedfields $fieldDefinition */
             $fieldDefinition = $container->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
-            $childDefinitions = $fieldDefinition->getFielddefinitions(['suppressEnrichment' => true]);
+            $childDefinitions = $fieldDefinition->getFieldDefinitions(['suppressEnrichment' => true]);
 
             if (is_array($childDefinitions)) {
                 foreach ($childDefinitions as $fd) {
-                    if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'delete')) {
-                        if (!$fd instanceof CustomResourcePersistingInterface) {
-                            Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'delete', CustomResourcePersistingInterface::class);
-                        }
+                    if ($fd instanceof CustomResourcePersistingInterface) {
                         $params = [];
                         $params['context'] = $this->model->getContext() ? $this->model->getContext() : [];
-                        if (isset($params['context']['containerType']) && ($params['context']['containerType'] == 'fieldcollection' || $params['context']['containerType'] == 'objectbrick')) {
+                        if (isset($params['context']['containerType']) && ($params['context']['containerType'] === 'fieldcollection' || $params['context']['containerType'] === 'objectbrick')) {
                             $params['context']['subContainerType'] = 'localizedfield';
                         }
 
@@ -443,6 +463,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         $db = Db::get();
+        $dirtyLanguageCondition = null;
 
         if ($this->model->allLanguagesAreDirty() ||
             ($container instanceof DataObject\Fieldcollection\Definition
@@ -464,7 +485,7 @@ class Dao extends Model\Dao\AbstractDao
 
         if ($container instanceof DataObject\Objectbrick\Definition || $container instanceof DataObject\Fieldcollection\Definition) {
             $objectId = $object->getId();
-            $index = $context['index'];
+            $index = $context['index'] ?? null;
             $containerName = $context['fieldname'];
             if (!$context['containerType']) {
                 throw new \Exception('no container type set');
@@ -496,7 +517,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         $context = $this->model->getContext();
-        if ($context && $context['containerType'] == 'fieldcollection') {
+        if (isset($context['containerType']) && $context['containerType'] === 'fieldcollection') {
             $containerKey = $context['containerKey'];
             $index = $context['index'];
             $fieldname = $context['fieldname'];
@@ -515,7 +536,7 @@ class Dao extends Model\Dao\AbstractDao
                     $index,
                 ]
             );
-        } elseif ($context && $context['containerType'] == 'objectbrick') {
+        } elseif (isset($context['containerType']) && $context['containerType'] === 'objectbrick') {
             $containerKey = $context['containerKey'];
             $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
             $fieldname = $context['fieldname'];
@@ -540,14 +561,13 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         foreach ($data as $row) {
-            foreach ($container->getFielddefinition('localizedfields')->getFielddefinitions(
+            /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
+            $localizedfields = $container->getFieldDefinition('localizedfields');
+            foreach ($localizedfields->getFieldDefinitions(
                 ['object' => $object, 'suppressEnrichment' => true]
             ) as $key => $fd) {
                 if ($fd) {
-                    if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'load')) {
-                        if (!$fd instanceof CustomResourcePersistingInterface) {
-                            Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'load', CustomResourcePersistingInterface::class);
-                        }
+                    if ($fd instanceof CustomResourcePersistingInterface) {
                         // datafield has it's own loader
                         $params['language'] = $row['language'];
                         $params['object'] = $object;
@@ -565,10 +585,7 @@ class Dao extends Model\Dao\AbstractDao
                             }
                         }
                     }
-                    if ($fd instanceof ResourcePersistenceAwareInterface || method_exists($fd, 'getDataFromResource')) {
-                        if (!$fd instanceof ResourcePersistenceAwareInterface) {
-                            Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataFromResource', ResourcePersistenceAwareInterface::class);
-                        }
+                    if ($fd instanceof ResourcePersistenceAwareInterface) {
                         if (is_array($fd->getColumnType())) {
                             $multidata = [];
                             foreach ($fd->getColumnType() as $fkey => $fvalue) {
@@ -698,7 +715,7 @@ QUERY;
         $table = $this->getTableName();
 
         $context = $this->model->getContext();
-        if ($context && $context['containerType'] == 'fieldcollection' || $context['containerType'] == 'objectbrick') {
+        if (isset($context['containerType']) && ($context['containerType'] === 'fieldcollection' || $context['containerType'] === 'objectbrick')) {
             $this->db->query(
                 'CREATE TABLE IF NOT EXISTS `'.$table."` (
               `ooo_id` int(11) NOT NULL default '0',
@@ -706,7 +723,6 @@ QUERY;
               `fieldname` VARCHAR(190) NOT NULL DEFAULT '',
               `language` varchar(10) NOT NULL DEFAULT '',
               PRIMARY KEY (`ooo_id`, `language`, `index`, `fieldname`),
-              INDEX `ooo_id` (`ooo_id`),
               INDEX `index` (`index`),
               INDEX `fieldname` (`fieldname`),
               INDEX `language` (`language`)
@@ -718,7 +734,6 @@ QUERY;
               `ooo_id` int(11) NOT NULL default '0',
               `language` varchar(10) NOT NULL DEFAULT '',
               PRIMARY KEY (`ooo_id`,`language`),
-              INDEX `ooo_id` (`ooo_id`),
               INDEX `language` (`language`)
             ) DEFAULT CHARSET=utf8mb4;"
             );
@@ -731,10 +746,10 @@ QUERY;
 
         DataObject\ClassDefinition\Service::updateTableDefinitions($this->tableDefinitions, ([$table]));
 
-        if ($context && ($context['containerType'] == 'fieldcollection' || $context['containerType'] == 'objectbrick')) {
+        if (isset($context['containerType']) && ($context['containerType'] === 'fieldcollection' || $context['containerType'] === 'objectbrick')) {
             $protectedColumns = ['ooo_id', 'language', 'index', 'fieldname'];
             $containerKey = $context['containerKey'];
-            if ($context['containerType'] == 'fieldcollection') {
+            if ($context['containerType'] === 'fieldcollection') {
                 $container = DataObject\Fieldcollection\Definition::getByKey($containerKey);
             } else {
                 $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
@@ -744,8 +759,9 @@ QUERY;
             $container = $this->model->getClass();
         }
 
-        $localizedFieldDefinition = $container->getFielddefinition('localizedfields', ['suppressEnrichment' => true]);
-        foreach ($localizedFieldDefinition->getFielddefinitions(['suppressEnrichment' => true]) as $value) {
+        /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedFieldDefinition */
+        $localizedFieldDefinition = $container->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
+        foreach ($localizedFieldDefinition->getFieldDefinitions(['suppressEnrichment' => true]) as $value) {
             if ($value instanceof ResourcePersistenceAwareInterface || method_exists($value, 'getDataForResource')) {
                 if ($value->getColumnType()) {
                     $key = $value->getName();
@@ -780,7 +796,6 @@ QUERY;
                       `ooo_id` int(11) NOT NULL default '0',
                       `language` varchar(10) NOT NULL DEFAULT '',
                       PRIMARY KEY (`ooo_id`,`language`),
-                      INDEX `ooo_id` (`ooo_id`),
                       INDEX `language` (`language`)
                     ) DEFAULT CHARSET=utf8mb4;"
                 );
@@ -798,21 +813,19 @@ QUERY;
                 if ($container instanceof DataObject\Objectbrick\Definition) {
                     $containerKey = $context['containerKey'];
                     $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
-                    $fieldDefinitions = $container->getFielddefinition(
-                        'localizedfields',
-                        ['suppressEnrichment' => true]
-                    )->getFielddefinitions(['suppressEnrichment' => true]);
+                    /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
+                    $localizedfields = $container->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
+                    $fieldDefinitions = $localizedfields->getFieldDefinitions(['suppressEnrichment' => true]);
                 } else {
-                    $fieldDefinitions = $this->model->getClass()->getFielddefinition(
-                        'localizedfields',
-                        ['suppressEnrichment' => true]
-                    )->getFielddefinitions(['suppressEnrichment' => true]);
+                    /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
+                    $localizedfields = $this->model->getClass()->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
+                    $fieldDefinitions = $localizedfields->getFieldDefinitions(['suppressEnrichment' => true]);
                 }
 
                 // add non existing columns in the table
                 if (is_array($fieldDefinitions) && count($fieldDefinitions)) {
                     foreach ($fieldDefinitions as $value) {
-                        if ($value instanceof DataObject\ClassDefinition\Data\QueryResourcePersistenceAwareInterface || method_exists($value, 'getDataForQueryResource')) {
+                        if ($value instanceof DataObject\ClassDefinition\Data\QueryResourcePersistenceAwareInterface) {
                             $key = $value->getName();
 
                             // if a datafield requires more than one column in the query table
@@ -835,7 +848,9 @@ QUERY;
                 // remove unused columns in the table
                 $this->removeUnusedColumns($queryTable, $columnsToRemove, $protectedColumns);
             }
+        }
 
+        if ($container instanceof DataObject\ClassDefinition) {
             $this->createLocalizedViews();
         }
 

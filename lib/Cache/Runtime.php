@@ -96,7 +96,6 @@ final class Runtime extends \ArrayObject
         $instance = self::getInstance();
 
         if (!$instance->offsetExists($index)) {
-            //require_once 'Zend/Exception.php';
             throw new \Exception("No entry is registered for key '$index'");
         }
 
@@ -161,18 +160,6 @@ final class Runtime extends \ArrayObject
         self::checkIndexes($index);
 
         parent::offsetSet($index, $value);
-    }
-
-    /**
-     * @param string $index
-     *
-     * @return mixed
-     *
-     * Workaround for http://bugs.php.net/bug.php?id=40442 (ZF-960).
-     */
-    public function offsetExists($index)
-    {
-        return array_key_exists($index, $this);
     }
 
     /**

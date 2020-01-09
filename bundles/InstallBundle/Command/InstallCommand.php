@@ -99,7 +99,7 @@ class InstallCommand extends Command
             ],
             'mysql-password' => [
                 'description' => 'MySQL password',
-                'mode' => InputOption::VALUE_REQUIRED,
+                'mode' => InputOption::VALUE_OPTIONAL,
                 'insecure' => true,
                 'hidden-input' => true,
                 'group' => 'db_credentials',
@@ -114,6 +114,12 @@ class InstallCommand extends Command
                 'mode' => InputOption::VALUE_REQUIRED,
                 'default' => 3306,
                 'group' => 'db_credentials',
+            ],
+            'mysql-ssl-cert-path' => [
+                'description' => 'MySQL SSL certificate path (if empty non-ssl connection assumed)',
+                'mode' => InputOption::VALUE_OPTIONAL,
+                'default' => '',
+                'group' => 'db_credentials'
             ],
             'skip-database-structure' => [
                 'description' => 'Skipping creation of database structure during install',
@@ -170,7 +176,7 @@ class InstallCommand extends Command
                 'ignore-existing-config',
                 null,
                 InputOption::VALUE_NONE,
-                'Do not abort if a <comment>system.php</comment> file already exists'
+                'Do not abort if a <comment>system.yml</comment> file already exists'
             );
 
         foreach ($this->getOptions() as $name => $config) {
@@ -189,9 +195,9 @@ class InstallCommand extends Command
     protected function initialize(InputInterface $input, OutputInterface $output)
     {
         // no installer if Pimcore is already installed
-        $configFile = Config::locateConfigFile('system.php');
+        $configFile = Config::locateConfigFile('system.yml');
         if ($configFile && is_file($configFile) && !$input->getOption('ignore-existing-config')) {
-            throw new \RuntimeException(sprintf('The system.php config file already exists in "%s". You can run this command with the --ignore-existing-config flag to ignore this error.', $configFile));
+            throw new \RuntimeException(sprintf('The system.yml config file already exists in "%s". You can run this command with the --ignore-existing-config flag to ignore this error.', $configFile));
         }
 
         $this->io = new PimcoreStyle($input, $output);
@@ -309,8 +315,8 @@ class InstallCommand extends Command
 
             $value = $input->getOption($name);
 
-            // Empty MySQL password allowed
-            if ($value || $name === 'mysql-password') {
+            // Empty MySQL password allowed, empty ssl cert path means it is not used
+            if ($value || $name === 'mysql-password' || $name === 'mysql-ssl-cert-path') {
                 $param = str_replace('-', '_', $name);
                 $params[$param] = $value;
             } else {

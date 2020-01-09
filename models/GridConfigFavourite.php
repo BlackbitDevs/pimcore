@@ -18,7 +18,7 @@
 namespace Pimcore\Model;
 
 /**
- * @method \Pimcore\Model\Version\Dao getDao()
+ * @method \Pimcore\Model\GridConfigFavourite\Dao getDao()
  */
 class GridConfigFavourite extends AbstractModel
 {
@@ -28,7 +28,7 @@ class GridConfigFavourite extends AbstractModel
     public $ownerId;
 
     /**
-     * @var int
+     * @var string
      */
     public $classId;
 
@@ -46,6 +46,11 @@ class GridConfigFavourite extends AbstractModel
      * @var string
      */
     public $searchType;
+
+    /**
+     * @var string
+     */
+    public $type;
 
     /**
      * @param $ownerId
@@ -103,7 +108,7 @@ class GridConfigFavourite extends AbstractModel
     }
 
     /**
-     * @param int $classId
+     * @param string $classId
      */
     public function setClassId($classId)
     {
@@ -156,5 +161,21 @@ class GridConfigFavourite extends AbstractModel
     public function setObjectId(int $objectId)
     {
         $this->objectId = $objectId;
+    }
+
+    /**
+     * @return string
+     */
+    public function getType()
+    {
+        return $this->type;
+    }
+
+    /**
+     * @param string $type
+     */
+    public function setType(string $type)
+    {
+        $this->type = $type;
     }
 }

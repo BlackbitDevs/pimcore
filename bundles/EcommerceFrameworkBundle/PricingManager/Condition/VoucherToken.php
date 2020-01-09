@@ -14,26 +14,34 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Condition;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractVoucherSeries;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\ICondition;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\IEnvironment;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\ConditionInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Token as VoucherServiceToken;
 use Pimcore\Model\DataObject\Concrete;
 
-class VoucherToken implements ICondition
+class VoucherToken implements ConditionInterface
 {
     /**
-     * @var array
+     * @var int[]
      */
     protected $whiteListIds = [];
+
+    /**
+     * @var \stdClass[]
+     */
     protected $whiteList = [];
 
     /**
-     * @param IEnvironment $environment
+     * @var string[]
+     */
+    protected $errorMessages = [];
+
+    /**
+     * @param EnvironmentInterface $environment
      *
      * @return bool
      */
-    public function check(IEnvironment $environment)
+    public function check(EnvironmentInterface $environment)
     {
         if (!($cart = $environment->getCart())) {
             return false;
@@ -69,12 +77,12 @@ class VoucherToken implements ICondition
         // basic
         $json = [
             'type' => 'VoucherToken',
-            'whiteList' => []
+            'whiteList' => [],
+            'error_messages' => $this->getErrorMessagesRaw()
         ];
 
         // add categories
         foreach ($this->getWhiteList() as $series) {
-            /* @var AbstractVoucherSeries $series */
             $json['whiteList'][] = [
                 $series->id,
                 $series->path
@@ -87,7 +95,7 @@ class VoucherToken implements ICondition
     /**
      * @param string $string
      *
-     * @return ICondition
+     * @return ConditionInterface
      */
     public function fromJSON($string)
     {
@@ -103,6 +111,8 @@ class VoucherToken implements ICondition
                 $whiteList[] = $series;
             }
         }
+
+        $this->setErrorMessagesRaw((array)$json->error_messages);
 
         $this->setWhiteListIds($whiteListIds);
         $this->setWhiteList($whiteList);
@@ -121,7 +131,7 @@ class VoucherToken implements ICondition
     }
 
     /**
-     * @return array
+     * @return int[]
      */
     public function getWhiteListIds()
     {
@@ -129,7 +139,7 @@ class VoucherToken implements ICondition
     }
 
     /**
-     * @param array $whiteListIds
+     * @param int[] $whiteListIds
      */
     public function setWhiteListIds($whiteListIds)
     {
@@ -137,7 +147,7 @@ class VoucherToken implements ICondition
     }
 
     /**
-     * @return array
+     * @return \stdClass[]
      */
     public function getWhiteList()
     {
@@ -145,10 +155,36 @@ class VoucherToken implements ICondition
     }
 
     /**
-     * @param array $whiteList
+     * @param \stdClass[] $whiteList
      */
     public function setWhiteList($whiteList)
     {
         $this->whiteList = $whiteList;
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getErrorMessagesRaw(): array
+    {
+        return $this->errorMessages;
+    }
+
+    /**
+     * @param string[] $errorMessages
+     */
+    public function setErrorMessagesRaw(array $errorMessages): void
+    {
+        $this->errorMessages = $errorMessages;
+    }
+
+    /**
+     * @param string $locale
+     *
+     * @return string
+     */
+    public function getErrorMessage(string $locale): string
+    {
+        return $this->errorMessages[$locale];
     }
 }

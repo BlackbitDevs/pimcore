@@ -111,12 +111,20 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
                 iconCls: "pimcore_icon_save_white",
                 cls: "pimcore_save_button",
                 scale: "medium",
-                handler: this.unpublish.bind(this),
-                menu: [{
-                    text: t('save_close'),
-                    iconCls: "pimcore_icon_save",
-                    handler: this.unpublishClose.bind(this)
-                }]
+                handler: this.save.bind(this, null),
+                menu: [
+                    {
+                        text: t('save_close'),
+                        iconCls: "pimcore_icon_save",
+                        handler: this.saveClose.bind(this)
+                    },
+                    {
+                        text: t('save_only_scheduled_tasks'),
+                        iconCls: "pimcore_icon_save",
+                        handler: this.save.bind(this, "scheduler","scheduler"),
+                        hidden: !this.isAllowed("settings") || this.data.published
+                    }
+                ]
             });
 
 
@@ -134,14 +142,14 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
                     },{
                         text: t('save_only_new_version'),
                         iconCls: "pimcore_icon_save",
-                        handler: this.save.bind(this),
-                        hidden: !this.isAllowed("save")
+                        handler: this.save.bind(this, null),
+                        hidden: !this.isAllowed("save") || !this.data.published
                     },
                     {
                         text: t('save_only_scheduled_tasks'),
                         iconCls: "pimcore_icon_save",
                         handler: this.save.bind(this, "scheduler","scheduler"),
-                        hidden: !this.isAllowed("settings")
+                        hidden: !this.isAllowed("settings") || !this.data.published
                     }
                 ]
             });
@@ -149,21 +157,21 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
 
             this.toolbarButtons.unpublish = new Ext.Button({
                 text: t('unpublish'),
-                iconCls: "pimcore_icon_unpublish",
+                iconCls: "pimcore_material_icon_unpublish pimcore_material_icon",
                 scale: "medium",
                 handler: this.unpublish.bind(this)
             });
 
             this.toolbarButtons.remove = new Ext.Button({
                 tooltip: t('delete'),
-                iconCls: "pimcore_icon_delete",
+                iconCls: "pimcore_material_icon_delete pimcore_material_icon",
                 scale: "medium",
                 handler: this.remove.bind(this)
             });
 
             this.toolbarButtons.rename = new Ext.Button({
                 tooltip: t('rename'),
-                iconCls: "pimcore_icon_key pimcore_icon_overlay_go",
+                iconCls: "pimcore_material_icon_rename pimcore_material_icon",
                 scale: "medium",
                 handler: this.rename.bind(this)
             });
@@ -193,7 +201,7 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
 
             buttons.push({
                 tooltip: t('reload'),
-                iconCls: "pimcore_icon_reload",
+                iconCls: "pimcore_material_icon_reload pimcore_material_icon",
                 scale: "medium",
                 handler: this.reload.bind(this)
             });
@@ -201,17 +209,19 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
             if (pimcore.elementservice.showLocateInTreeButton("document")) {
                 buttons.push({
                     tooltip: t('show_in_tree'),
-                    iconCls: "pimcore_icon_show_in_tree",
+                    iconCls: "pimcore_material_icon_locate pimcore_material_icon",
                     scale: "medium",
                     handler: this.selectInTree.bind(this)
                 });
             }
 
             buttons.push({
+                xtype: "splitbutton",
                 tooltip: t("show_metainfo"),
-                iconCls: "pimcore_icon_info",
+                iconCls: "pimcore_material_icon_info pimcore_material_icon",
                 scale: "medium",
-                handler: this.showMetaInfo.bind(this)
+                handler: this.showMetaInfo.bind(this),
+                menu: this.getMetaInfoMenuItems()
             });
 
             buttons.push(this.getTranslationButtons());
@@ -220,7 +230,7 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
                 buttons.push("-");
                 buttons.push({
                     tooltip: t("open_in_new_window"),
-                    iconCls: "pimcore_icon_open_window",
+                    iconCls: "pimcore_material_icon_open_window pimcore_material_icon",
                     scale: "medium",
                     handler: function () {
                         window.open(this.data.url);
@@ -229,7 +239,7 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
 
                 buttons.push({
                     tooltip: t("open_preview_in_new_window"),
-                    iconCls: "pimcore_icon_preview_new_window",
+                    iconCls: "pimcore_material_icon_preview pimcore_material_icon",
                     scale: "medium",
                     handler: function () {
                         var date = new Date();
@@ -258,6 +268,15 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
                             window.open(link);
                         }
                     }.bind(this)
+                });
+            }
+
+            if (pimcore.globalmanager.get("user").isAllowed('notifications_send')) {
+                buttons.push({
+                    tooltip: t('share_via_notifications'),
+                    iconCls: "pimcore_icon_share",
+                    scale: "medium",
+                    handler: this.shareViaNotifications.bind(this)
                 });
             }
 
@@ -295,7 +314,7 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
                 id: "document_toolbar_" + this.id,
                 region: "north",
                 border: false,
-                cls: "main-toolbar",
+                cls: "pimcore_main_toolbar",
                 items: buttons,
                 overflowHandler: 'scroller'
             });
@@ -347,42 +366,57 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
         }.bind(this));
     },
 
+    getMetaInfo: function() {
+        return {
+            id: this.data.id,
+            path: this.data.path + this.data.key,
+            parentid: this.data.parentId,
+            type: this.data.type,
+            modificationdate: this.data.modificationDate,
+            creationdate: this.data.creationDate,
+            usermodification: this.data.userModification,
+            userowner: this.data.userOwner,
+            deeplink: pimcore.helpers.getDeeplink("document", this.data.id, this.data.type)
+        };
+    },
+
     showMetaInfo: function() {
+        var metainfo = this.getMetaInfo();
 
         new pimcore.element.metainfo([
             {
                 name: "id",
-                value: this.data.id
+                value: metainfo.id
             },
             {
                 name: "path",
-                value: this.data.path + this.data.key
+                value: metainfo.path
             }, {
                 name: "parentid",
-                value: this.data.parentId
+                value: metainfo.parentid
             }, {
                 name: "type",
-                value: this.data.type
+                value: metainfo.type
             }, {
                 name: "modificationdate",
                 type: "date",
-                value: this.data.modificationDate
+                value: metainfo.modificationdate
             }, {
                 name: "creationdate",
                 type: "date",
-                value: this.data.creationDate
+                value: metainfo.creationdate
             }, {
                 name: "usermodification",
                 type: "user",
-                value: this.data.userModification
+                value: metainfo.usermodification
             }, {
                 name: "userowner",
                 type: "user",
-                value: this.data.userOwner
+                value: metainfo.userowner
             },
             {
                 name: "deeplink",
-                value: pimcore.helpers.getDeeplink("document", this.data.id, this.data.type)
+                value: metainfo.deeplink
             }
         ], "document");
     },
@@ -397,5 +431,19 @@ pimcore.document.page_snippet = Class.create(pimcore.document.document, {
             };
             pimcore.elementservice.editElementKey(options);
         }
+    },
+
+    shareViaNotifications: function () {
+        if (pimcore.globalmanager.get("user").isAllowed('notifications_send')) {
+            var elementData = {
+                id:this.data.id,
+                type:'document',
+                published:this.data.published,
+                path:this.data.path + this.data.key
+            };
+            if (pimcore.globalmanager.get("new_notifications")) {
+                pimcore.globalmanager.get("new_notifications").getWindow().destroy();
+            }
+            pimcore.globalmanager.add("new_notifications", new pimcore.notification.modal(elementData));        }
     }
 });

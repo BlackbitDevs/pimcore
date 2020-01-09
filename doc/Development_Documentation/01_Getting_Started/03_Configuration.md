@@ -2,25 +2,21 @@
 
 Pimcore's configuration can be found in several places:
 
-* Configurations in `var/config/*.php` are written from the admin interface. For example the `system.php` file contains
-  the settings written from [System Settings](../18_Tools_and_Features/25_System_Settings.md)
-* The Symfony configuration tree (mainly distributed throughout `*.yml` files) contains all Symfony related configuration.
-  This configuration is partially populated from settings coming from other config files (e.g. the database credentials
-  stored in `system.php` are used to configure the [Doctrine Bundle](http://symfony.com/doc/master/bundles/DoctrineBundle/configuration.html#configuration-overview)
-  configuration.
+* Configurations in `var/config/*.(php|yml)` are written from the admin interface. For example the `system.yml` file contains the settings from [System Settings](../18_Tools_and_Features/25_System_Settings.md)
+* The Symfony configuration tree (mainly distributed throughout `*.yml` files) contains all Symfony as well as most of the Pimcore related configurations.
 * A set of `PIMCORE_*` constants which are used to resolve various filesystem paths
 
 
 ## Symfony Configuration
 
 Many aspects of Pimcore can be configured through the [Symfony Config](https://symfony.com/doc/3.4/bundles/configuration.html)
-tree defined under the `pimcore` extension. These values can be changed through config files in `app/config` (e.g. `app/config/config.yml)`).
+tree defined under the `pimcore` and `pimcore_admin` extension. These values can be changed through config files in `app/config` (e.g. `app/config/config.yml)`).
 
-Pimcore additionally includes a set of standard configuration files which (in contrast to a standard Symfony project) are
-not located in `app/config` but in the [PimcoreCoreBundle](https://github.com/pimcore/pimcore/tree/master/bundles/CoreBundle/Resources/config/pimcore).
-This gives us the possibility to ship and update default configurations without affecting project code in `app/`. See
+Pimcore additionally includes a set of standard configuration files which, in contrast to a standard Symfony project, are
+not located in `app/config`, but in the [PimcoreCoreBundle](https://github.com/pimcore/pimcore/tree/master/bundles/CoreBundle/Resources/config/pimcore).
+This allows us to ship and update default configurations without affecting project code in `app/`. See
 [Auto loading config and routing definitions](../20_Extending_Pimcore/13_Bundle_Developers_Guide/03_Auto_Loading_Config_And_Routing_Definitions.md)
-for details how this works).
+for details how this works.
 
 Standard configs will be merged with your custom config in `app/config` to build the final config tree. You can debug the
 values stored in the tree through the following command:
@@ -43,8 +39,8 @@ $ bin/console config:dump-reference pimcore
 Pimcore uses several constants for locating certain directories like logging, assets, versions etc. These constants are
 defined in [`lib/Bootstrap.php`](https://github.com/pimcore/pimcore/blob/master/lib/Bootstrap.php).
 
-If you need to overwrite these constants, e.g. for using a special directory for assets or versions at an object storage
-at AWS S3 you have multiple ways to do so:
+If you need to overwrite these constants (e.g. for using a special directory for assets or versions at an object storage
+at AWS S3), you have multiple ways to do so:
 
 * Create a file in `/app/constants.php` setting the constants you need. Pimcore will skip setting any constants which are 
   already defined.
@@ -56,7 +52,7 @@ at AWS S3 you have multiple ways to do so:
 
 The [Pimcore Skeleton](https://github.com/pimcore/skeleton) repository contains an example file,
 [`constants.example.php`](https://github.com/pimcore/skeleton/blob/master/app/constants.example.php).
-The following file is an example to overwrite some locations:
+The following file is an example of how you can overwrite some paths:
 
 ```php
 <?php
@@ -77,24 +73,11 @@ for a list of defined constants.
 
 There is one special constant `PIMCORE_PROJECT_ROOT` which is used to resolve the root directory (see [Directory Structure](./02_Directory_Structure.md))
 of the application.
-In constrast to the remaining constants, this constant is not defined in `constants.php` as it is already needed to resolve
-the path to the `constants.php` file itself. Instead, it is defined in Pimcore's entry points such as `app.php` in the following
-way:
+In contrast to the remaining constants, this constant is not defined in `constants.php` as it is already needed to resolve
+the path to the `constants.php` file. It is defined in Pimcore's bootstrapping class `\Pimcore\Bootstrap::setProjectRoot()` instead. 
 
-```php
-<?php
 
-if (!defined('PIMCORE_PROJECT_ROOT')) {
-    define(
-        'PIMCORE_PROJECT_ROOT',
-        getenv('PIMCORE_PROJECT_ROOT')
-            ?: getenv('REDIRECT_PIMCORE_PROJECT_ROOT')
-            ?: realpath(__DIR__ . '/..')
-    );
-}
-```
-
-This means, you can influence the project root through an env variable (or by defining a constant before loading the entry
+You can change the project root through an env variable (or by defining a constant before loading the entry
 point) if needed and Pimcore will fall back to its standard value if not defined. If you use Pimcore's standard directory
 layout as shipped in the zip file, you don't have to set anything, but if you need some kind of special setup you have full
 control over the used paths here.
@@ -121,5 +104,5 @@ your needs. Examples:
 
 use \Symfony\Component\HttpFoundation\Request;
 
-Request::setTrustedProxies(['192.0.0.1', '10.0.0.0/8']);
+Request::setTrustedProxies(['192.0.0.1', '10.0.0.0/8'], Request::HEADER_X_FORWARDED_ALL);
 ```

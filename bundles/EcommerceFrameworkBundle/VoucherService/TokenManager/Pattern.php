@@ -14,7 +14,8 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\TokenManager;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\InvalidConfigException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\VoucherServiceException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractVoucherTokenType;
@@ -22,14 +23,16 @@ use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Reservation;
 use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Statistic;
 use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Token;
 use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Token\Listing;
+use Pimcore\File;
 use Pimcore\Model\DataObject\Fieldcollection\Data\VoucherTokenTypePattern;
+use Pimcore\Model\DataObject\OnlineShopVoucherSeries;
 use Pimcore\Model\DataObject\OnlineShopVoucherToken;
 use Zend\Paginator\Paginator;
 
 /**
  * Class Pattern
  */
-class Pattern extends AbstractTokenManager implements IExportableTokenManager
+class Pattern extends AbstractTokenManager implements ExportableTokenManagerInterface
 {
     /* @var float Max probability to hit a duplicate entry on insertion e.g. to guess a code  */
 
@@ -47,9 +50,9 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
     {
         parent::__construct($configuration);
         if ($configuration instanceof VoucherTokenTypePattern) {
-            $this->template = 'PimcoreEcommerceFrameworkBundle:Voucher:voucherCodeTabPattern.html.php';
+            $this->template = 'PimcoreEcommerceFrameworkBundle:voucher:voucher_code_tab_pattern.html.twig';
         } else {
-            throw new VoucherServiceException('Invalid Configuration Class for Type VoucherTokenTypePattern.');
+            throw new InvalidConfigException('Invalid Configuration Class for Type VoucherTokenTypePattern.');
         }
     }
 
@@ -77,21 +80,21 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @throws VoucherServiceException
      *
      * @return bool|int
      */
-    public function checkToken($code, ICart $cart)
+    public function checkToken($code, CartInterface $cart)
     {
         parent::checkToken($code, $cart);
         if ($token = Token::getByCode($code)) {
             if ($token->isUsed()) {
-                throw new VoucherServiceException('Token has already been used.', 1);
+                throw new VoucherServiceException('Token has already been used.', VoucherServiceException::ERROR_CODE_TOKEN_ALREADY_IN_USE);
             }
             if ($token->isReserved()) {
-                throw new VoucherServiceException('Token has already been reserved.', 2);
+                throw new VoucherServiceException('Token has already been reserved.', VoucherServiceException::ERROR_CODE_TOKEN_ALREADY_RESERVED);
             }
         }
 
@@ -100,47 +103,47 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @throws VoucherServiceException
      *
      * @return bool
      */
-    public function reserveToken($code, ICart $cart)
+    public function reserveToken($code, CartInterface $cart)
     {
         if ($token = Token::getByCode($code)) {
             if (Reservation::create($code, $cart)) {
                 return true;
             } else {
-                throw new VoucherServiceException('Token Reservation not possible.', 3);
+                throw new VoucherServiceException('Token Reservation not possible.', VoucherServiceException::ERROR_CODE_TOKEN_RESERVATION_NOT_POSSIBLE);
             }
         }
-        throw new VoucherServiceException('No Token for this code exists.', 4);
+        throw new VoucherServiceException('No Token for this code exists.', VoucherServiceException::ERROR_CODE_NO_TOKEN_FOR_THIS_CODE_EXISTS);
     }
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface $cart
      * @param AbstractOrder $order
      *
      * @throws VoucherServiceException
      *
      * @return bool|OnlineShopVoucherToken
      */
-    public function applyToken($code, ICart $cart, AbstractOrder $order)
+    public function applyToken($code, CartInterface $cart, AbstractOrder $order)
     {
         if ($token = Token::getByCode($code)) {
             if ($token->isUsed()) {
-                throw new VoucherServiceException('Token has already been used.', 1);
+                throw new VoucherServiceException('Token has already been used.', VoucherServiceException::ERROR_CODE_TOKEN_ALREADY_IN_USE);
             }
             if ($token->apply()) {
                 $orderToken = new OnlineShopVoucherToken();
                 $orderToken->setTokenId($token->getId());
                 $orderToken->setToken($token->getToken());
-                $series = \Pimcore\Model\DataObject\OnlineShopVoucherSeries::getById($token->getVoucherSeriesId());
+                $series = OnlineShopVoucherSeries::getById($token->getVoucherSeriesId());
                 $orderToken->setVoucherSeries($series);
                 $orderToken->setParent($series);
-                $orderToken->setKey(\Pimcore\File::getValidFilename($token->getToken()));
+                $orderToken->setKey(File::getValidFilename($token->getToken()));
                 $orderToken->setPublished(1);
                 $orderToken->save();
 
@@ -173,11 +176,11 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface $cart
      *
      * @return bool
      */
-    public function releaseToken($code, ICart $cart)
+    public function releaseToken($code, CartInterface $cart)
     {
         return Reservation::releaseToken($code);
     }
@@ -386,6 +389,7 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
     {
         $query = 'INSERT INTO ' . Token\Dao::TABLE_NAME . '(token,length,voucherSeriesId) ';
         $finalLength = $this->getFinalTokenLength();
+        $insertParts = [];
 
         if (sizeof($insertTokens) > 0) {
             foreach ($insertTokens as $token) {
@@ -445,6 +449,7 @@ class Pattern extends AbstractTokenManager implements IExportableTokenManager
                         $checkTokenCount++;
                     }
                 } else {
+                    $token = null;
                     $checkTokenCount++;
                 }
 

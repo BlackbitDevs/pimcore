@@ -43,19 +43,6 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @param Site $site
-     * @param Document $document
-     *
-     * @return int
-     */
-    public function getDocumentIdFromHardlinkInSameSite(Site $site, Document $document)
-    {
-        return $this->db->fetchOne('SELECT documents.id FROM documents
-            LEFT JOIN documents_hardlink ON documents.id = documents_hardlink.id
-            WHERE documents_hardlink.sourceId = ? AND documents.path LIKE ?', [$document->getId(), $site->getRootPath() . '/%']);
-    }
-
-    /**
      * @param Document $document
      *
      * @return int
@@ -146,7 +133,7 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @param Document $sourceDocument
+     * @param Document $document
      * @param Document $targetDocument
      */
     public function removeTranslationLink(Document $document, Document $targetDocument)

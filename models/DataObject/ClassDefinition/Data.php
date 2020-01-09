@@ -18,6 +18,7 @@ namespace Pimcore\Model\DataObject\ClassDefinition;
 
 use Pimcore\Model;
 use Pimcore\Model\DataObject;
+use Pimcore\Model\DataObject\Exception\InheritanceParentNotFoundException;
 
 abstract class Data
 {
@@ -52,6 +53,11 @@ abstract class Data
      * @var int
      */
     public $index;
+
+    /**
+     * @var string
+     */
+    public $phpdocType;
 
     /**
      * @var bool
@@ -98,8 +104,10 @@ abstract class Data
      */
     public $visibleSearch = true;
 
-    /** If set to true then null values will not be exported.
-     * @var
+    /**
+     * If set to true then null values will not be exported.
+     *
+     * @var bool
      */
     protected static $dropNullValues;
 
@@ -211,6 +219,7 @@ abstract class Data
     /**
      * converts data to be exposed via webservices
      *
+     * @deprecated
      * @param DataObject\AbstractObject $object
      * @param mixed $params
      *
@@ -224,10 +233,11 @@ abstract class Data
     /**
      * converts data to be imported via webservices
      *
+     * @deprecated
      * @param mixed $value
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
-     * @param $idMapper
+     * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
      * @return mixed
      */
@@ -622,6 +632,23 @@ abstract class Data
     }
 
     /**
+     * @param string $key
+     *
+     * @return string
+     */
+    protected function getPreGetValueHookCode(string $key): string
+    {
+        $code = "\t" . 'if($this instanceof PreGetValueHookInterface && !\Pimcore::inAdmin()) {' . " \n";
+        $code .= "\t\t" . '$preValue = $this->preGetValue("' . $key . '");' . " \n";
+        $code .= "\t\t" . 'if($preValue !== null) { ' . "\n";
+        $code .= "\t\t\t" . 'return $preValue;' . "\n";
+        $code .= "\t\t" . '}' . "\n";
+        $code .= "\t" . '}' . " \n\n";
+
+        return $code;
+    }
+
+    /**
      * Creates getter code which is used for generation of php file for object classes using this data type
      *
      * @param $class
@@ -639,28 +666,28 @@ abstract class Data
         $code .= '*/' . "\n";
         $code .= 'public function get' . ucfirst($key) . " () {\n";
 
-        // adds a hook preGetValue which can be defined in an extended class
-        $code .= "\t" . '$preValue = $this->preGetValue("' . $key . '");' . " \n";
-        $code .= "\t" . 'if($preValue !== null && !\Pimcore::inAdmin()) { ' . "\n";
-        $code .= "\t\t" . 'return $preValue;' . "\n";
-        $code .= "\t" . '}' . "\n";
+        $code .= $this->getPreGetValueHookCode($key);
 
         if (method_exists($this, 'preGetData')) {
-            $code .= "\t" . '$data = $this->getClass()->getFieldDefinition("' . $key . '")->preGetData($this);' . "\n";
+            $code .= "\t" . '$data = $this->getClass()->getFieldDefinition("' . $key . '")->preGetData($this);' . "\n\n";
         } else {
-            $code .= "\t" . '$data = $this->' . $key . ";\n";
+            $code .= "\t" . '$data = $this->' . $key . ";\n\n";
         }
 
         // insert this line if inheritance from parent objects is allowed
         if ($class instanceof DataObject\ClassDefinition && $class->getAllowInherit() && $this->supportsInheritance()) {
             $code .= "\t" . 'if(\Pimcore\Model\DataObject::doGetInheritedValues() && $this->getClass()->getFieldDefinition("' . $key . '")->isEmpty($data)) {' . "\n";
-            $code .= "\t\t" . 'return $this->getValueFromParent("' . $key . '");' . "\n";
-            $code .= "\t" . '}' . "\n";
+            $code .= "\t\t" . 'try {' . "\n";
+            $code .= "\t\t\t" . 'return $this->getValueFromParent("' . $key . '");' . "\n";
+            $code .= "\t\t" . '} catch (InheritanceParentNotFoundException $e) {' . "\n";
+            $code .= "\t\t\t" . '// no data from parent available, continue ... ' . "\n";
+            $code .= "\t\t" . '}' . "\n";
+            $code .= "\t" . '}' . "\n\n";
         }
 
         $code .= "\t" . 'if ($data instanceof \\Pimcore\\Model\\DataObject\\Data\\EncryptedField) {' . "\n";
         $code .= "\t\t" . '    return $data->getPlain();' . "\n";
-        $code .= "\t" . '}' . "\n";
+        $code .= "\t" . '}' . "\n\n";
 
         $code .= "\treturn " . '$data' . ";\n";
         $code .= "}\n\n";
@@ -746,7 +773,11 @@ abstract class Data
 
         if ($this->supportsInheritance()) {
             $code .= "\t" . 'if(\Pimcore\Model\DataObject::doGetInheritedValues($this->getObject()) && $this->getDefinition()->getFieldDefinition("' . $key . '")->isEmpty($data)) {' . "\n";
-            $code .= "\t\t" . 'return $this->getValueFromParent("' . $key . '");' . "\n";
+            $code .= "\t\t" . 'try {' . "\n";
+            $code .= "\t\t\t" . 'return $this->getValueFromParent("' . $key . '");' . "\n";
+            $code .= "\t\t" . '} catch (InheritanceParentNotFoundException $e) {' . "\n";
+            $code .= "\t\t\t" . '// no data from parent available, continue ... ' . "\n";
+            $code .= "\t\t" . '}' . "\n";
             $code .= "\t" . '}' . "\n";
         }
 
@@ -915,20 +946,16 @@ abstract class Data
         $code .= "\t" . '$data = $this->getLocalizedfields()->getLocalizedValue("' . $key . '", $language);' . "\n";
 
         if (!$class instanceof DataObject\Fieldcollection\Definition) {
-            // adds a hook preGetValue which can be defined in an extended class
-            $code .= "\t" . '$preValue = $this->preGetValue("' . $key . '");' . " \n";
-            $code .= "\t" . 'if($preValue !== null && !\Pimcore::inAdmin()) { ' . "\n";
-            $code .= "\t\t" . 'return $preValue;' . "\n";
-            $code .= "\t" . '}' . "\n";
+            $code .= $this->getPreGetValueHookCode($key);
         }
 
         $code .= "\t" . 'if ($data instanceof \\Pimcore\\Model\\DataObject\\Data\\EncryptedField) {' . "\n";
-        $code .= "\t\t" . '    return $data->getPlain();' . "\n";
+        $code .= "\t\t" . 'return $data->getPlain();' . "\n";
         $code .= "\t" . '}' . "\n";
 
         // we don't need to consider preGetData, because this is already managed directly by the localized fields within getLocalizedValue()
 
-        $code .= "\t return " . '$data' . ";\n";
+        $code .= "\treturn " . '$data' . ";\n";
         $code .= "}\n\n";
 
         return $code;
@@ -988,6 +1015,41 @@ abstract class Data
     }
 
     /**
+     * Creates filter method code for listing classes
+     *
+     * @return string
+     */
+    public function getFilterCode()
+    {
+        $key = $this->getName();
+
+        $code = '/**' . "\n";
+        $code .= '* Filter by ' . str_replace(['/**', '*/', '//'], '', $key) . ' (' . str_replace(['/**', '*/', '//'], '', $this->getTitle()) . ")\n";
+
+        $dataParamDoc = 'mixed $'.$key;
+        $reflectionMethod = new \ReflectionMethod($this, 'addListingFilter');
+        if(preg_match('/@param\s+([^\s]+)\s+\$data(.*)/', $reflectionMethod->getDocComment(), $dataParam)) {
+            $dataParamDoc = $dataParam[1].' $'.$key.' '.$dataParam[2];
+        }
+
+        $operatorParamDoc = 'string $operator SQL comparison operator, e.g. =, <, >= etc. You can use "?" as placeholder, e.g. "IN (?)"';
+        if(preg_match('/@param\s+([^\s]+)\s+\$operator(.*)/', $reflectionMethod->getDocComment(), $dataParam)) {
+            $operatorParamDoc = $dataParam[1].' $operator '.$dataParam[2];
+        }
+
+        $code .= '* @param '.$dataParamDoc."\n";
+        $code .= '* @param '.$operatorParamDoc."\n";
+        $code .= '* @return static'."\n";
+        $code .= '*/' . "\n";
+        $code .= 'public function filterBy' . ucfirst($key) .' ($'.$key.', $operator = \'=\') {'."\n";
+        $code .= "\t" . '$this->getClass()->getFieldDefinition("' . $key . '")->addListingFilter($this, $' . $key . ', $operator);' . "\n";
+        $code .= "\treturn " . '$this' . ";\n";
+        $code .= "}\n\n";
+
+        return $code;
+    }
+
+    /**
      * @param $number
      *
      * @return int|null
@@ -1020,7 +1082,7 @@ abstract class Data
     }
 
     /**
-     * @param DataObject\Concrete $data
+     * @param mixed $data
      *
      * @return bool
      */
@@ -1107,7 +1169,7 @@ abstract class Data
     }
 
     /**
-     * @param  $dropNullValues
+     * @param bool $dropNullValues
      */
     public static function setDropNullValues($dropNullValues)
     {
@@ -1115,7 +1177,7 @@ abstract class Data
     }
 
     /**
-     * @return
+     * @return bool
      */
     public static function getDropNullValues()
     {
@@ -1146,23 +1208,34 @@ abstract class Data
             return $params['injectedData'];
         }
 
-        $context = is_array($params) && isset($params['context']) ? $params['context'] : null;
+        $context = $params['context'] ?? null;
 
-        if ($context) {
-            if ($context['containerType'] == 'fieldcollection' || $context['containerType'] == 'block') {
+        if (isset($context['containerType'])) {
+            if ($context['containerType'] === 'fieldcollection' || $context['containerType'] === 'block') {
                 if ($this instanceof DataObject\ClassDefinition\Data\Localizedfields || $object instanceof DataObject\Localizedfield) {
                     $fieldname = $context['fieldname'];
-                    $index = $context['index'];
+                    $index = $context['index'] ?? null;
 
                     if ($object instanceof DataObject\Concrete) {
                         $containerGetter = 'get' . ucfirst($fieldname);
                         $container = $object->$containerGetter();
+                        if (!$container && $context['containerType'] === 'block') {
+                            // no data, so check if inheritance is enabled + there is parent value
+                            if ($object->getClass()->getAllowInherit()) {
+                                try {
+                                    $container = $object->getValueFromParent($fieldname);
+                                } catch (InheritanceParentNotFoundException $e) {
+                                    //nothing to do here - just no parent data available
+                                }
+                            }
+                        }
+
                         if ($container) {
-                            $originalIndex = $context['oIndex'];
+                            $originalIndex = $context['oIndex'] ?? null;
 
                             // field collection or block items
-                            if (!is_null($originalIndex)) {
-                                if ($context['containerType'] == 'block') {
+                            if ($originalIndex !== null) {
+                                if ($context['containerType'] === 'block') {
                                     $items = $container;
                                 } else {
                                     $items = $container->getItems();
@@ -1171,7 +1244,7 @@ abstract class Data
                                 if ($items && count($items) > $originalIndex) {
                                     $item = $items[$originalIndex];
 
-                                    if ($context['containerType'] == 'block') {
+                                    if ($context['containerType'] === 'block') {
                                         $data = $item[$this->getName()];
                                         if ($data instanceof DataObject\Data\BlockElement) {
                                             $data = $data->getData();
@@ -1203,8 +1276,7 @@ abstract class Data
                         return $data;
                     }
                 }
-            }
-            if ($context['containerType'] == 'objectbrick' && ($this instanceof DataObject\ClassDefinition\Data\Localizedfields || $object instanceof DataObject\Localizedfield)) {
+            } elseif ($context['containerType'] === 'objectbrick' && ($this instanceof DataObject\ClassDefinition\Data\Localizedfields || $object instanceof DataObject\Localizedfield)) {
                 $fieldname = $context['fieldname'];
 
                 if ($object instanceof DataObject\Concrete) {
@@ -1212,11 +1284,11 @@ abstract class Data
                     $container = $object->$containerGetter();
                     if ($container) {
                         $brickGetter = 'get' . ucfirst($context['containerKey']);
-                        /** @var $brickData DataObject\Objectbrick\Data\AbstractData */
+                        /** @var DataObject\Objectbrick\Data\AbstractData $brickData */
                         $brickData = $container->$brickGetter();
 
                         if ($brickData) {
-                            /** @var $localizedFields DataObject\Localizedfield */
+                            /** @var DataObject\Localizedfield $data */
                             $data = $brickData->getLocalizedFields();
                             // $data = $localizedFields->getLocalizedValue($this->getName(), $params['language'], true);
 
@@ -1230,7 +1302,7 @@ abstract class Data
 
                     return $data;
                 }
-            } elseif ($context['containerType'] == 'classificationstore') {
+            } elseif ($context['containerType'] === 'classificationstore') {
                 $fieldname = $context['fieldname'];
                 $getter = 'get' . ucfirst($fieldname);
                 if (method_exists($object, $getter)) {
@@ -1238,7 +1310,7 @@ abstract class Data
                     $keyId = $context['keyId'];
                     $language = $context['language'];
 
-                    /** @var $classificationStoreData DataObject\Classificationstore */
+                    /** @var DataObject\Classificationstore $classificationStoreData */
                     $classificationStoreData = $object->$getter();
                     $data = $classificationStoreData->getLocalizedKeyValue($groupId, $keyId, $language, true, true);
 
@@ -1295,7 +1367,7 @@ abstract class Data
      */
     public function marshal($value, $object = null, $params = [])
     {
-        if ($params['raw']) {
+        if (isset($params['raw']) && $params['raw']) {
             return $value;
         } else {
             return ['value' => $value];
@@ -1329,6 +1401,17 @@ abstract class Data
      * @return mixed
      */
     public function appendData($existingData, $additionalData)
+    {
+        return $existingData;
+    }
+
+    /**
+     * @param $existingData
+     * @param $removeData
+     *
+     * @return mixed
+     */
+    public function removeData($existingData, $removeData)
     {
         return $existingData;
     }
@@ -1372,90 +1455,21 @@ abstract class Data
         }
     }
 
-    /**
-     * @param string $class
-     * @param string $method
-     */
-    protected function triggerDeprecatedWarning(string $class, string $method)
+    public function isFilterable(): bool
     {
-        $trace = '';
-        try {
-            throw new \Exception('foo');
-        } catch (\Exception $e) {
-            $trace = $e->getTraceAsString();
-        }
-
-        @trigger_error(
-            sprintf(
-                '%s uses method %s from the abstract class. This won\'t work in v6.0, please use the proper interfaces and provided traits.' . "\n\n" . $trace,
-                $class,
-                $method
-            ),
-            E_USER_DEPRECATED
-        );
+        return false;
     }
 
     /**
-     * @return string | array
+     * @param DataObject\Listing            $listing
+     * @param string|int|float|double|array $data comparison data, can be scalar or array (if operator is e.g. "IN (?)")
+     * @param string                        $operator SQL comparison operator, e.g. =, <, >= etc. You can use "?" as placeholder, e.g. "IN (?)"
      */
-    public function getColumnType()
-    {
-        $this->triggerDeprecatedWarning(get_class($this), __METHOD__);
-
-        if (property_exists($this, 'columnType')) {
-            return $this->columnType;
+    public function addListingFilter(DataObject\Listing $listing, $data, $operator = '=') {
+        if(strpos($operator, '?') === false) {
+            $operator .= ' ?';
         }
 
-        return null;
-    }
-
-    /**
-     * @deprecated
-     *
-     * @param string | array $columnType
-     *
-     * @return $this
-     */
-    public function setColumnType($columnType)
-    {
-        $this->triggerDeprecatedWarning(get_class($this), __METHOD__);
-
-        if (property_exists($this, 'columnType')) {
-            $this->columnType = $columnType;
-        }
-
-        return $this;
-    }
-
-    /**
-     * @return string | array
-     */
-    public function getQueryColumnType()
-    {
-        $this->triggerDeprecatedWarning(get_class($this), __METHOD__);
-
-        if (property_exists($this, 'queryColumnType')) {
-            return $this->queryColumnType;
-        }
-
-        return null;
-    }
-
-    /**
-     * @deprecated
-     *
-     * @param string | array $queryColumnType
-     *
-     * @return $this
-     */
-    public function setQueryColumnType($queryColumnType)
-    {
-        $this->triggerDeprecatedWarning(get_class($this), __METHOD__);
-
-        if (property_exists($this, 'queryColumnType')) {
-            $this->queryColumnType = $queryColumnType;
-        }
-
-        return $this;
+        $listing->addConditionParam('`'.$this->getName().'` '.$operator, $data);
     }
 }

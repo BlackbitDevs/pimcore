@@ -17,10 +17,10 @@ namespace Pimcore\Bundle\EcommerceFrameworkBundle\CartManager;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Tools\SessionConfigurator;
 use Symfony\Component\HttpFoundation\Session\Attribute\AttributeBagInterface;
 
-class SessionCart extends AbstractCart implements ICart
+class SessionCart extends AbstractCart implements CartInterface
 {
     /**
-     * @var ICart[]
+     * @var CartInterface[]
      */
     protected static $unserializedCarts;
 
@@ -120,7 +120,7 @@ class SessionCart extends AbstractCart implements ICart
     /**
      * @param int $id
      *
-     * @return ICart|SessionCart
+     * @return CartInterface|SessionCart
      */
     public static function getById($id)
     {
@@ -134,7 +134,7 @@ class SessionCart extends AbstractCart implements ICart
      *
      * @param int $userId
      *
-     * @return ICart[]
+     * @return CartInterface[]
      */
     public static function getAllCartsForUser($userId)
     {
@@ -176,6 +176,8 @@ class SessionCart extends AbstractCart implements ICart
     {
         $this->setIgnoreReadonly();
 
+        $timestampBackup = $this->getModificationDate();
+
         // set current cart
         foreach ($this->getItems() as $item) {
             $item->setCart($this);
@@ -186,8 +188,9 @@ class SessionCart extends AbstractCart implements ICart
                 }
             }
         }
-
         $this->modified();
+
+        $this->setModificationDate($timestampBackup);
         $this->unsetIgnoreReadonly();
     }
 }

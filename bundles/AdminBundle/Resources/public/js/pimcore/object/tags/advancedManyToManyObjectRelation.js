@@ -19,6 +19,7 @@ pimcore.object.tags.advancedManyToManyObjectRelation = Class.create(pimcore.obje
     idProperty: "rowId",
     pathProperty: "fullpath",
     allowBatchAppend: true,
+    allowBatchRemove: true,
 
     initialize: function (data, fieldConfig) {
         this.data = [];
@@ -358,6 +359,7 @@ pimcore.object.tags.advancedManyToManyObjectRelation = Class.create(pimcore.obje
                     draggroup: 'element'
                 },
                 markDirty: false,
+                enableTextSelection: true,
                 listeners: {
                     afterrender: function (gridview) {
                         this.requestNicePathData(this.store.data, true);
@@ -493,18 +495,20 @@ pimcore.object.tags.advancedManyToManyObjectRelation = Class.create(pimcore.obje
                         }.bind(this, grid)
                     });
                     menu.add(batchSelectedMenu);
-                    menu.on('beforeshow', function (batchAllMenu, grid) {
+                    menu.on('beforeshow', function (batchAllMenu, batchSelectedMenu, grid) {
                         var menu = grid.headerCt.getMenu();
                         var columnDataIndex = menu.activeHeader.dataIndex;
                         var metaIndex = this.fieldConfig.columnKeys.indexOf(columnDataIndex);
 
                         if (metaIndex < 0) {
+                            batchSelectedMenu.hide();
                             batchAllMenu.hide();
                         } else {
+                            batchSelectedMenu.show();
                             batchAllMenu.show();
                         }
 
-                    }.bind(this, batchAllMenu, grid));
+                    }.bind(this, batchAllMenu, batchSelectedMenu, grid));
                 }
             }.bind(this));
         }
@@ -561,137 +565,20 @@ pimcore.object.tags.advancedManyToManyObjectRelation = Class.create(pimcore.obje
         }
     },
 
-    getGridColumnConfig: function(field) {
-        return {text: ts(field.label), width: 150, sortable: false, dataIndex: field.key,
+    getGridColumnConfig: function (field) {
+        return {
+            text: ts(field.label), width: 150, sortable: false, dataIndex: field.key,
             getEditor: this.getWindowCellEditor.bind(this, field),
-            renderer: function (key, value, metaData, record) {
-                this.applyPermissionStyle(key, value, metaData, record);
-
-                if(record.data.inheritedFields[key]
-                    && record.data.inheritedFields[key].inherited == true) {
-                    metaData.tdCls += " grid_value_inherited";
-                }
-
-
-                if (value) {
-                    var result = [];
-                    var i;
-                    for (i = 0; i < value.length && i < 10; i++) {
-                        var item = value[i];
-                        result.push(item["fullpath"]);
-                    }
-                    return result.join("<br />");
-                }
-                return value;
-            }.bind(this, field.key)};
+            renderer: pimcore.object.helpers.grid.prototype.advancedRelationGridRenderer.bind(this, field, "fullpath")
+        };
     },
 
 
     getCellEditValue: function () {
         return this.getValue();
-    },
-
-    batchPrepare: function(columnDataIndex, grid, onlySelected, append){
-        var columnIndex = columnDataIndex.fullColumnIndex;
-        var editor = grid.getColumns()[columnIndex].getEditor();
-        var metaIndex = this.fieldConfig.columnKeys.indexOf(columnDataIndex.dataIndex);
-        var columnConfig = this.fieldConfig.columns[metaIndex];
-
-        if (columnConfig.type == 'multiselect') { //create edit layout for multiselect field
-            var selectData = [];
-            if (columnConfig.value) {
-                var selectDataRaw = columnConfig.value.split(";");
-                for (var j = 0; j < selectDataRaw.length; j++) {
-                    selectData.push([selectDataRaw[j], ts(selectDataRaw[j])]);
-                }
-            }
-
-            var store = new Ext.data.ArrayStore({
-                fields: [
-                    'id',
-                    'label'
-                ],
-                data: selectData
-            });
-
-            var options = {
-                triggerAction: "all",
-                editable: false,
-                store: store,
-                componentCls: "object_field",
-                height: '100%',
-                valueField: 'id',
-                displayField: 'label'
-            };
-
-            editor = Ext.create('Ext.ux.form.MultiSelect', options);
-        } else if (columnConfig.type == 'bool') { //create edit layout for bool meta field
-            editor = new Ext.form.Checkbox();
-        }
-
-        var editorLabel = Ext.create('Ext.form.Label', {
-          text: grid.getColumns()[columnIndex].text + ':',
-          style: {
-            float: 'left',
-            margin: '0 20px 0 0'
-          }
-        });
-
-        var formPanel = Ext.create('Ext.form.Panel', {
-            xtype: "form",
-            border: false,
-            items: [editorLabel, editor],
-            bodyStyle: "padding: 10px;",
-            buttons: [
-                {
-                    text: t("edit"),
-                    handler: function() {
-                        if(formPanel.isValid()) {
-                            this.batchProcess(columnDataIndex.dataIndex, editor, grid, onlySelected);
-                        }
-                    }.bind(this)
-                }
-            ]
-        });
-        var batchTitle = onlySelected ? "batch_edit_field_selected" : "batch_edit_field";
-        var title = t(batchTitle) + " " + grid.getColumns()[columnIndex].text;
-        this.batchWin = new Ext.Window({
-            autoScroll: true,
-            modal: false,
-            title: title,
-            items: [formPanel],
-            bodyStyle: "background: #fff;",
-            width: 500,
-            maxHeight: 400
-        });
-        this.batchWin.show();
-        this.batchWin.updateLayout();
-
-    },
-
-    batchProcess: function (dataIndex, editor, grid, onlySelected) {
-
-        var newValue = editor.getValue();
-        var valueType = "primitive";
-
-        if (onlySelected) {
-            var selectedRows = grid.getSelectionModel().getSelection();
-            for (var i=0; i<selectedRows.length; i++) {
-                selectedRows[i].set(dataIndex, newValue);
-            }
-        } else {
-            var items = grid.store.data.items;
-            for (var i = 0; i < items.length; i++)
-            {
-                var record = grid.store.getAt(i);
-                record.set(dataIndex, newValue);
-            }
-        }
-
-        this.batchWin.close();
     }
 
 });
 
-// @TODO BC layer, to be removed in v6.0
+// @TODO BC layer, to be removed in v7.0
 pimcore.object.tags.objectsMetadata = pimcore.object.tags.advancedManyToManyObjectRelation;

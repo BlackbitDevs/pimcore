@@ -125,7 +125,7 @@ pimcore.document.pages.settings = Class.create(pimcore.document.settings_abstrac
                 title: t('SEO') + ' &amp; ' + t('settings'),
                 border: false,
                 autoScroll: true,
-                iconCls: "pimcore_icon_settings pimcore_icon_overlay_seo",
+                iconCls: "pimcore_material_icon_page_settings pimcore_material_icon",
                 bodyStyle:'padding:0 10px 0 10px;',
                 items: [
                     {
@@ -217,7 +217,7 @@ pimcore.document.pages.settings = Class.create(pimcore.document.settings_abstrac
                                 value: this.document.data.prettyUrl,
                                 enableKeyEvents: true,
                                 listeners: {
-                                    "keyup": function (el) {
+                                    "focusleave": function (el) {
                                         Ext.Ajax.request({
                                             url: "/admin/page/check-pretty-url",
                                             method: "POST",
@@ -229,6 +229,9 @@ pimcore.document.pages.settings = Class.create(pimcore.document.settings_abstrac
                                                 res = Ext.decode(res.responseText);
                                                 if(!res.success) {
                                                     el.getEl().addCls("pimcore_error_input");
+                                                    if (res.message) {
+                                                        Ext.MessageBox.alert(t("info"), res.message);
+                                                    }
                                                 } else {
                                                     el.getEl().removeCls("pimcore_error_input");
                                                 }

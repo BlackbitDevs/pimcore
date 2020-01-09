@@ -14,7 +14,10 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService;
 
-class Reservation extends \Pimcore\Model\AbstractModel
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
+use Pimcore\Model\AbstractModel;
+
+class Reservation extends AbstractModel
 {
     public $id;
     public $token;
@@ -23,11 +26,11 @@ class Reservation extends \Pimcore\Model\AbstractModel
 
     /**
      * @param $code
-     * @param \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart $cart
+     * @param CartInterface $cart
      *
      * @return bool|Reservation
      */
-    public static function get($code, \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart $cart = null)
+    public static function get($code, CartInterface $cart = null)
     {
         try {
             $config = new self();
@@ -70,11 +73,11 @@ class Reservation extends \Pimcore\Model\AbstractModel
 
     /**
      * @param string $code
-     * @param \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart $cart
+     * @param CartInterface $cart
      *
      * @return bool
      */
-    public static function releaseToken($code, \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart $cart = null)
+    public static function releaseToken($code, CartInterface $cart = null)
     {
         $db = \Pimcore\Db::get();
 

@@ -145,7 +145,7 @@ class FrontendRoutingListener implements EventSubscriberInterface
      * Initialize Site
      *
      * @param Request $request
-     * @param $path
+     * @param string $path
      *
      * @return string
      */
@@ -157,16 +157,13 @@ class FrontendRoutingListener implements EventSubscriberInterface
             // host name without port incl. X-Forwarded-For handling for trusted proxies
             $host = $request->getHost();
 
-            try {
-                $site = Site::getByDomain($host);
+            if ($site = Site::getByDomain($host)) {
                 $path = $site->getRootPath() . $path;
 
                 Site::setCurrentSite($site);
 
                 $this->siteResolver->setSite($request, $site);
                 $this->siteResolver->setSitePath($request, $path);
-            } catch (\Exception $e) {
-                // noop - execption is logged in getByDomain
             }
         }
 
@@ -183,7 +180,7 @@ class FrontendRoutingListener implements EventSubscriberInterface
 
         // do not allow requests including /app.php/ => SEO
         // this is after the first redirect check, to allow redirects in app.php?xxx
-        if (preg_match('@^/app.php(.*)@', $path, $matches) && $request->getMethod() === 'GET') {
+        if (preg_match('@^/app\.php(.*)@', $path, $matches) && $request->getMethod() === 'GET') {
             $redirectUrl = $matches[1];
             $redirectUrl = ltrim($redirectUrl, '/');
             $redirectUrl = '/' . $redirectUrl;

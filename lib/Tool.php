@@ -15,9 +15,6 @@
 namespace Pimcore;
 
 use GuzzleHttp\RequestOptions;
-use Pimcore\Cache\Symfony\CacheClearer;
-use Pimcore\FeatureToggles\Features\DebugMode;
-use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\HttpFoundation\Request;
 
 class Tool
@@ -224,14 +221,18 @@ class Tool
 
     /**
      * @param $language
+     * @param $absolutePath
      *
      * @return string
      */
-    public static function getLanguageFlagFile($language)
+    public static function getLanguageFlagFile($language, $absolutePath = true)
     {
-        $relativePath = '/bundles/pimcoreadmin/img/flags';
-        $iconWebBasePath = PIMCORE_PROJECT_ROOT . $relativePath;
-        $iconFsBasePath = PIMCORE_WEB_ROOT . $relativePath;
+        $basePath = '/bundles/pimcoreadmin/img/flags';
+        $iconFsBasePath = PIMCORE_WEB_ROOT . $basePath;
+
+        if ($absolutePath === true) {
+            $basePath = PIMCORE_WEB_ROOT . $basePath;
+        }
 
         $code = strtolower($language);
         $code = str_replace('_', '-', $code);
@@ -248,7 +249,7 @@ class Tool
         $countryFsPath = $iconFsBasePath . '/countries/' . $countryCode . '.svg';
         $fallbackFsLanguagePath = $iconFsBasePath . '/languages/' . $fallbackLanguageCode . '.svg';
 
-        $iconPath = $iconFsBasePath . '/countries/_unknown.svg';
+        $iconPath = ($absolutePath === true ? $iconFsBasePath : $basePath) . '/countries/_unknown.svg';
 
         $languageCountryMapping = [
             'aa' => 'er', 'af' => 'za', 'am' => 'et', 'as' => 'in', 'ast' => 'es', 'asa' => 'tz',
@@ -270,13 +271,13 @@ class Tool
         ];
 
         if (array_key_exists($code, $languageCountryMapping)) {
-            $iconPath = $iconFsBasePath . '/countries/' . $languageCountryMapping[$code] . '.svg';
+            $iconPath = $basePath . '/countries/' . $languageCountryMapping[$code] . '.svg';
         } elseif (file_exists($languageFsPath)) {
-            $iconPath = $languageFsPath;
+            $iconPath = $basePath . '/languages/' . $code . '.svg';
         } elseif ($countryCode && file_exists($countryFsPath)) {
-            $iconPath = $iconFsBasePath . '/countries/' . $countryCode . '.svg';
+            $iconPath = $basePath . '/countries/' . $countryCode . '.svg';
         } elseif ($fallbackLanguageCode && file_exists($fallbackFsLanguagePath)) {
-            $iconPath = $iconFsBasePath . '/languages/' . $fallbackLanguageCode . '.svg';
+            $iconPath = $basePath . '/languages/' . $fallbackLanguageCode . '.svg';
         }
 
         return $iconPath;
@@ -360,18 +361,6 @@ class Tool
     }
 
     /**
-     * @deprecated Just a BC compatibility method
-     *
-     * @param Request|null $request
-     *
-     * @return bool
-     */
-    public static function isFrontentRequestByAdmin(Request $request = null)
-    {
-        return self::isFrontendRequestByAdmin($request);
-    }
-
-    /**
      * @static
      *
      * @param Request|null $request
@@ -400,7 +389,7 @@ class Tool
         ]);
 
         // check for manually disabled ?pimcore_outputfilters_disabled=true
-        if (array_key_exists('pimcore_outputfilters_disabled', $requestKeys) && \Pimcore::inDebugMode(DebugMode::MAGIC_PARAMS)) {
+        if (array_key_exists('pimcore_outputfilters_disabled', $requestKeys) && \Pimcore::inDebugMode()) {
             return false;
         }
 
@@ -488,17 +477,30 @@ class Tool
      *
      * @param Request|null $request
      *
-     * @return string
+     * @return string|null
      */
     public static function getClientIp(Request $request = null)
     {
         $request = self::resolveRequest($request);
+        if ($request) {
+            return $request->getClientIp();
+        }
 
-        if (null === $request) {
+        // fallback to $_SERVER variables
+        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+            $ip = $_SERVER['HTTP_CLIENT_IP'];
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
+            $ip = $_SERVER['REMOTE_ADDR'];
+        } else {
             return null;
         }
 
-        return $request->getClientIp();
+        $ips = explode(',', $ip);
+        $ip = trim(array_shift($ips));
+
+        return $ip;
     }
 
     /**
@@ -536,9 +538,9 @@ class Tool
 
             foreach ($confArray['views'] as $tmp) {
                 if (isset($tmp['name'])) {
-                    $tmp['showroot'] = (bool) $tmp['showroot'];
+                    $tmp['showroot'] = !empty($tmp['showroot']);
 
-                    if ((bool) $tmp['hidden']) {
+                    if (!empty($tmp['hidden'])) {
                         continue;
                     }
 
@@ -632,51 +634,6 @@ class Tool
     }
 
     /**
-     * @deprecated Use the Pimcore\Cache\Symfony\CacheClearer service
-     *
-     * @param Container|null $container
-     */
-    public static function clearSymfonyCache(Container $container = null)
-    {
-        if (count(func_get_args()) > 1) {
-            @trigger_error(
-                sprintf(
-                    'The $envSpecific flag for Tool::clearSymfonyCache is not supported anymore. Please use the %s service instead.',
-                    CacheClearer::class
-                ),
-                E_USER_DEPRECATED
-            );
-        }
-
-        if (!$container) {
-            $container = \Pimcore::getContainer();
-        }
-
-        $kernel = $container->get('kernel');
-
-        $clearer = $container->get(CacheClearer::class);
-        $clearer->clear($kernel->getEnvironment());
-    }
-
-    /**
-     * @deprecated Will be removed in Pimcore 6
-     */
-    public static function getSymfonyCacheDirRemoveTempLocation(string $realCacheDir): string
-    {
-        @trigger_error(
-            sprintf(
-                'The Tool::getSymfonyCacheDirRemoveTempLocation() method is deprecated and will be removed in Pimcore 6. Please use the %s service instead.',
-                CacheClearer::class
-            ),
-            E_USER_DEPRECATED
-        );
-
-        // the temp cache dir name must not be longer than the real one to avoid exceeding
-        // the maximum length of a directory or file path within it (esp. Windows MAX_PATH)
-        return substr($realCacheDir, 0, -1) . ('~' === substr($realCacheDir, -1) ? '+' : '~');
-    }
-
-    /**
      * @static
      *
      * @param $class
@@ -754,40 +711,5 @@ class Tool
         }
 
         die($message);
-    }
-
-    /**
-     * @param string $class
-     * @param string $method
-     * @param string $interface
-     */
-    public static function triggerMissingInterfaceDeprecation($class, $method, $interface)
-    {
-        @trigger_error(
-            sprintf(
-                '%s use method %s, but hasn\'t a %s interface. This won\'t work in v6.0.',
-                $class,
-                $method,
-                $interface
-            ),
-            E_USER_DEPRECATED
-        );
-    }
-
-    /**
-     * @param $name
-     * @param $arguments
-     *
-     * @return mixed
-     *
-     * @throws \Exception
-     */
-    public static function __callStatic($name, $arguments)
-    {
-        if (class_exists('Pimcore\\Tool\\Legacy')) {
-            return forward_static_call_array('Pimcore\\Tool\\Legacy::' . $name, $arguments);
-        }
-
-        throw new \Exception('Call to undefined static method ' . $name . ' on class Pimcore\\Tool');
     }
 }

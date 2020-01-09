@@ -14,12 +14,17 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface ;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\UnsupportedException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\VoucherServiceException;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Factory;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Condition\VoucherToken;
+use Pimcore\Bundle\EcommerceFrameworkBundle\VoucherService\Token as VoucherServiceToken;
+use Pimcore\Localization\LocaleServiceInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class DefaultService implements IVoucherService
+class DefaultService implements VoucherServiceInterface
 {
     /**
      * @var int
@@ -31,12 +36,19 @@ class DefaultService implements IVoucherService
      */
     protected $statisticsDaysThreshold;
 
-    public function __construct(array $options = [])
+    /**
+     * @var string
+     */
+    protected $currentLocale;
+
+    public function __construct(LocaleServiceInterface $localeService, array $options = [])
     {
         $resolver = new OptionsResolver();
         $this->configureOptions($resolver);
 
         $this->processOptions($resolver->resolve($options));
+
+        $this->currentLocale = $localeService->getLocale();
     }
 
     protected function processOptions(array $options)
@@ -63,27 +75,27 @@ class DefaultService implements IVoucherService
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface  $cart
      *
      * @return bool
      *
      * @throws VoucherServiceException
      */
-    public function checkToken($code, ICart $cart)
+    public function checkToken($code, CartInterface  $cart)
     {
         if ($tokenManager = $this->getTokenManager($code)) {
             return $tokenManager->checkToken($code, $cart);
         }
-        throw new VoucherServiceException('No Token for code ' .$code . ' exists.', 3);
+        throw new VoucherServiceException('No Token for code ' .$code . ' exists.', VoucherServiceException::ERROR_CODE_NO_TOKEN_FOR_THIS_CODE_EXISTS);
     }
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface  $cart
      *
      * @return bool
      */
-    public function reserveToken($code, ICart $cart)
+    public function reserveToken($code, CartInterface  $cart)
     {
         if ($tokenManager = $this->getTokenManager($code)) {
             return $tokenManager->reserveToken($code, $cart);
@@ -94,11 +106,11 @@ class DefaultService implements IVoucherService
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface  $cart
      *
      * @return bool
      */
-    public function releaseToken($code, ICart $cart)
+    public function releaseToken($code, CartInterface  $cart)
     {
         if ($tokenManager = $this->getTokenManager($code)) {
             return $tokenManager->releaseToken($code, $cart);
@@ -109,12 +121,12 @@ class DefaultService implements IVoucherService
 
     /**
      * @param string $code
-     * @param ICart $cart
+     * @param CartInterface  $cart
      * @param AbstractOrder $order
      *
      * @return bool
      */
-    public function applyToken($code, ICart $cart, AbstractOrder $order)
+    public function applyToken($code, CartInterface  $cart, AbstractOrder $order)
     {
         if ($tokenManager = $this->getTokenManager($code)) {
             if ($orderToken = $tokenManager->applyToken($code, $cart, $order)) {
@@ -163,7 +175,103 @@ class DefaultService implements IVoucherService
     }
 
     /**
-     * @param null $seriesId
+     * @param CartInterface $cart
+     * @param string|null $locale
+     *
+     * @return PricingManagerTokenInformation[]
+     *
+     * @throws UnsupportedException
+     */
+    public function getPricingManagerTokenInformationDetails(CartInterface $cart, string $locale = null): array
+    {
+        if (empty($cart->getVoucherTokenCodes())) {
+            return [];
+        }
+
+        if (null == $locale) {
+            $locale = $this->currentLocale;
+        }
+
+        // get all valid rules configured in system
+        $validRules = Factory::getInstance()->getPricingManager()->getValidRules();
+        $validRulesAssoc = [];
+        foreach ($validRules as $rule) {
+            $validRulesAssoc[$rule->getId()] = $rule;
+        }
+
+        // get all applied rules for current cart and cart items
+        $appliedRules = $cart->getPriceCalculator()->getAppliedPricingRules();
+
+        // filter applied rules for voucher conditions
+        $appliedRulesWithVoucherCondition = [];
+        foreach ($appliedRules as $appliedRule) {
+            $conditions = $appliedRule->getConditionsByType(VoucherToken::class);
+            if ($conditions) {
+                $appliedRulesWithVoucherCondition[$appliedRule->getId()] = $conditions;
+            }
+        }
+
+        // calculate not applied rules with voucher conditions
+        $notAppliedRules = array_udiff($validRules, $appliedRules, function ($rule1, $rule2) {
+            return strcmp($rule1->getId(), $rule2->getId());
+        });
+        $notAppliedRulesWithVoucherCondition = [];
+        foreach ($notAppliedRules as $notAppliedRule) {
+            $conditions = $notAppliedRule->getConditionsByType(VoucherToken::class);
+            if ($conditions) {
+                $notAppliedRulesWithVoucherCondition[$notAppliedRule->getId()] = $conditions;
+            }
+        }
+
+        $tokenInformationList = [];
+
+        foreach ($cart->getVoucherTokenCodes() as $tokenCode) {
+            $tokenInformation = new PricingManagerTokenInformation();
+            $tokenInformation->setTokenCode($tokenCode);
+            $tokenInformation->setTokenObject(VoucherServiceToken::getByCode($tokenCode));
+
+            $notAppliedPricingRules = [];
+            $appliedPricingRules = [];
+            $errorMessages = [];
+
+            foreach ($notAppliedRulesWithVoucherCondition as $ruleId => $conditions) {
+                foreach ($conditions as $condition) {
+                    /** @var VoucherToken $condition */
+                    if ($condition->checkVoucherCode($tokenCode)) {
+                        $errorMessages[] = $condition->getErrorMessage($locale);
+                        $notAppliedPricingRules[] = $validRulesAssoc[$ruleId];
+                    }
+                }
+            }
+
+            if (!$errorMessages) {
+                $hasRule = false;
+                foreach ($appliedRulesWithVoucherCondition as $ruleId => $conditions) {
+                    foreach ($conditions as $condition) {
+                        /** @var VoucherToken $condition */
+                        if ($condition->checkVoucherCode($tokenCode)) {
+                            $hasRule = true;
+                            $appliedPricingRules[] = $validRulesAssoc[$ruleId];
+                            break;
+                        }
+                    }
+                }
+
+                $tokenInformation->setHasNoValidRule(!$hasRule);
+            }
+
+            $tokenInformation->setErrorMessages($errorMessages);
+            $tokenInformation->setNotAppliedRules($notAppliedPricingRules);
+            $tokenInformation->setAppliedRules($appliedPricingRules);
+
+            $tokenInformationList[$tokenCode] = $tokenInformation;
+        }
+
+        return $tokenInformationList;
+    }
+
+    /**
+     * @param string|null $seriesId
      *
      * @return bool
      */
@@ -203,7 +311,7 @@ class DefaultService implements IVoucherService
     /**
      * @param $code
      *
-     * @return bool|TokenManager\ITokenManager
+     * @return bool|TokenManager\TokenManagerInterface
      */
     public function getTokenManager($code)
     {

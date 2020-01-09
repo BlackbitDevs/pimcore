@@ -24,7 +24,6 @@ use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Data\CustomResourcePersistingInterface;
 use Pimcore\Model\DataObject\ClassDefinition\Data\QueryResourcePersistenceAwareInterface;
 use Pimcore\Model\DataObject\ClassDefinition\Data\ResourcePersistenceAwareInterface;
-use Pimcore\Tool;
 
 /**
  * @property \Pimcore\Model\DataObject\Concrete $model
@@ -147,20 +146,19 @@ class Dao extends Model\DataObject\AbstractObject\Dao
 
         $fieldDefinitions = $this->model->getClass()->getFieldDefinitions(['object' => $this->model]);
         foreach ($fieldDefinitions as $key => $value) {
-            if ($value instanceof CustomResourcePersistingInterface || method_exists($value, 'load')) {
-                if (!$value instanceof CustomResourcePersistingInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($value), 'load', CustomResourcePersistingInterface::class);
-                }
+            if ($value instanceof CustomResourcePersistingInterface) {
                 // datafield has it's own loader
-                $value = $value->load($this->model);
+                $params = [
+                    'context' => [
+                        'object' => $this->model
+                    ]
+                ];
+                $value = $value->load($this->model, $params);
                 if ($value === 0 || !empty($value)) {
                     $this->model->setValue($key, $value);
                 }
             }
-            if ($value instanceof ResourcePersistenceAwareInterface || method_exists($value, 'getDataFromResource')) {
-                if (!$value instanceof ResourcePersistenceAwareInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($value), 'getDataFromResource', ResourcePersistenceAwareInterface::class);
-                }
+            if ($value instanceof ResourcePersistenceAwareInterface) {
                 // if a datafield requires more than one field
                 if (is_array($value->getColumnType())) {
                     $multidata = [];
@@ -228,25 +226,19 @@ class Dao extends Model\DataObject\AbstractObject\Dao
         foreach ($fieldDefinitions as $key => $fd) {
             $getter = 'get' . ucfirst($key);
 
-            if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'save')) {
-                if (!$fd instanceof CustomResourcePersistingInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'save', CustomResourcePersistingInterface::class);
-                }
+            if ($fd instanceof CustomResourcePersistingInterface) {
                 // for fieldtypes which have their own save algorithm eg. fieldcollections, relational data-types, ...
                 $saveParams = ['isUntouchable' => in_array($fd->getName(), $untouchable),
-                               'isUpdate' => $isUpdate,
-                                'context' => [
-                                    'containerType' => 'object'
-                                ]];
+                    'isUpdate' => $isUpdate,
+                    'context' => [
+                        'containerType' => 'object'
+                    ]];
                 if ($this->model instanceof DataObject\DirtyIndicatorInterface) {
                     $saveParams['newParent'] = $this->model->isFieldDirty('o_parentId');
                 }
                 $fd->save($this->model, $saveParams);
             }
-            if ($fd instanceof ResourcePersistenceAwareInterface || method_exists($fd, 'getDataForResource')) {
-                if (!$fd instanceof ResourcePersistenceAwareInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForResource', ResourcePersistenceAwareInterface::class);
-                }
+            if ($fd instanceof ResourcePersistenceAwareInterface) {
                 // pimcore saves the values with getDataForResource
                 if (is_array($fd->getColumnType())) {
                     $insertDataArray = $fd->getDataForResource($this->model->$getter(), $this->model);
@@ -254,7 +246,10 @@ class Dao extends Model\DataObject\AbstractObject\Dao
                         $data = array_merge($data, $insertDataArray);
                     }
                 } else {
-                    $insertData = $fd->getDataForResource($this->model->$getter(), $this->model);
+                    $insertData = $fd->getDataForResource($this->model->$getter(), $this->model,
+                        [
+                            'owner' => $this->model
+                        ]);
                     $data[$key] = $insertData;
                 }
             }
@@ -283,10 +278,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
         }
 
         foreach ($fieldDefinitions as $key => $fd) {
-            if ($fd instanceof QueryResourcePersistenceAwareInterface || method_exists($fd, 'getDataForQueryResource')) {
-                if (!$fd instanceof QueryResourcePersistenceAwareInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'getDataForQueryResource', QueryResourcePersistenceAwareInterface::class);
-                }
+            if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                 //exclude untouchables if value is not an array - this means data has not been loaded
                 if (!in_array($key, $untouchable)) {
                     $method = 'get' . $key;
@@ -322,9 +314,11 @@ class Dao extends Model\DataObject\AbstractObject\Dao
                             if (is_array($insertData)) {
                                 $doInsert = false;
                                 foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                    if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                    $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                    $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                    if ($isEmpty && $oldDataValue == $parentDataValue) {
                                         // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                    } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                    } elseif ($oldDataValue != $insertDataValue) {
                                         $doInsert = true;
                                         break;
                                     }
@@ -334,25 +328,31 @@ class Dao extends Model\DataObject\AbstractObject\Dao
                                     $this->inheritanceHelper->addRelationToCheck($key, $fd, array_keys($insertData));
                                 }
                             } else {
-                                if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                                $oldDataValue = $oldData[$key] ?? null;
+                                $parentDataValue = $parentData[$key] ?? null;
+                                if ($isEmpty && $oldDataValue == $parentDataValue) {
                                     // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                } elseif ($oldData[$key] != $insertData) {
+                                } elseif ($oldDataValue != $insertData) {
                                     $this->inheritanceHelper->addRelationToCheck($key, $fd);
                                 }
                             }
                         } else {
                             if (is_array($insertData)) {
                                 foreach ($insertData as $insertDataKey => $insertDataValue) {
-                                    if ($isEmpty && $oldData[$insertDataKey] == $parentData[$insertDataKey]) {
+                                    $oldDataValue = $oldData[$insertDataKey] ?? null;
+                                    $parentDataValue = $parentData[$insertDataKey] ?? null;
+                                    if ($isEmpty && $oldDataValue == $parentDataValue) {
                                         // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                    } elseif ($oldData[$insertDataKey] != $insertDataValue) {
+                                    } elseif ($oldDataValue != $insertDataValue) {
                                         $this->inheritanceHelper->addFieldToCheck($insertDataKey, $fd);
                                     }
                                 }
                             } else {
-                                if ($isEmpty && $oldData[$key] == $parentData[$key]) {
+                                $oldDataValue = $oldData[$key] ?? null;
+                                $parentDataValue = $parentData[$key] ?? null;
+                                if ($isEmpty && $oldDataValue == $parentDataValue) {
                                     // do nothing, ... value is still empty and parent data is equal to current data in query table
-                                } elseif ($oldData[$key] != $insertData) {
+                                } elseif ($oldDataValue != $insertData) {
                                     // data changed, do check and update
                                     $this->inheritanceHelper->addFieldToCheck($key, $fd);
                                 }
@@ -373,7 +373,11 @@ class Dao extends Model\DataObject\AbstractObject\Dao
 
     public function saveChildData()
     {
-        $this->inheritanceHelper->doUpdate($this->model->getId());
+        $this->inheritanceHelper->doUpdate($this->model->getId(), false, [
+            "inheritanceRelationContext" => [
+                "ownerType" => "object"
+            ]
+        ]);
         $this->inheritanceHelper->resetFieldsToCheck();
     }
 
@@ -388,10 +392,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
 
         // delete fields wich have their own delete algorithm
         foreach ($this->model->getClass()->getFieldDefinitions() as $fd) {
-            if ($fd instanceof CustomResourcePersistingInterface || method_exists($fd, 'delete')) {
-                if (!$fd instanceof CustomResourcePersistingInterface) {
-                    Tool::triggerMissingInterfaceDeprecation(get_class($fd), 'delete', CustomResourcePersistingInterface::class);
-                }
+            if ($fd instanceof CustomResourcePersistingInterface) {
                 $fd->delete($this->model);
             }
         }
@@ -402,7 +403,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
     /**
      * get versions from database, and assign it to object
      *
-     * @return array
+     * @return Model\Version[]
      */
     public function getVersions()
     {
@@ -429,12 +430,9 @@ class Dao extends Model\DataObject\AbstractObject\Dao
      */
     public function getLatestVersion($force = false)
     {
-        $versionData = $this->db->fetchRow("SELECT id,date FROM versions WHERE cid = ? AND ctype='object' ORDER BY `id` DESC LIMIT 1", $this->model->getId());
-
-        if ($versionData && $versionData['id'] && ($versionData['date'] > $this->model->getModificationDate() || $force)) {
-            $version = Model\Version::getById($versionData['id']);
-
-            return $version;
+        if ($this->model instanceof DataObject\Concrete) {
+            return DataObject\Concrete::getLatestVersionByObjectIdAndLatestModificationDate($this->model->getId(),
+                $this->model->getModificationDate(), $this->model->getVersionCount(), $force);
         }
 
         return;

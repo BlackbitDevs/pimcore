@@ -19,7 +19,6 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Pimcore\Bundle\CoreBundle\EventListener\Frontend\ElementListener;
 use Pimcore\Event\MailEvents;
 use Pimcore\Event\Model\MailEvent;
-use Pimcore\FeatureToggles\Features\DebugMode;
 use Pimcore\Helper\Mail as MailHelper;
 
 class Mail extends \Swift_Message
@@ -267,7 +266,7 @@ class Mail extends \Swift_Message
             return true;
         }
 
-        return \Pimcore::inDebugMode(DebugMode::MAIL) && $this->ignoreDebugMode === false;
+        return \Pimcore::inDebugMode() && $this->ignoreDebugMode === false;
     }
 
     /**
@@ -623,11 +622,17 @@ class Mail extends \Swift_Message
 
         if ($event->hasArgument('mailer')) {
             $mailer = $event->getArgument('mailer');
-            $mailer->send($this);
+            $failedRecipients = [];
+            try {
+                $mailer->send($this, $failedRecipients);
+            } catch (\Exception $e) {
+                $mailer->getTransport()->stop();
+                throw new \Exception($failedRecipients[0].' - '.$e->getMessage());
+            }
         }
 
         if ($this->loggingIsEnabled()) {
-            if (\Pimcore::inDebugMode(DebugMode::MAIL) && !$this->ignoreDebugMode) {
+            if (\Pimcore::inDebugMode() && !$this->ignoreDebugMode) {
                 $recipients = $this->getDebugMailRecipients($recipients);
             }
 
@@ -758,8 +763,6 @@ class Mail extends \Swift_Message
         } else {
             //creating text version from html email if html2text is installed
             try {
-                include_once(PIMCORE_PATH . '/lib/simple_html_dom.php');
-
                 $htmlContent = $this->getBodyHtmlRendered();
                 $html = str_get_html($htmlContent);
                 if ($html) {

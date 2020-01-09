@@ -58,7 +58,17 @@ pimcore.bundle.EcommerceFramework.bundle = Class.create(pimcore.plugin.admin, {
         // init
         var menuItems = toolbar.ecommerceMenu;
         if (!menuItems) {
-            menuItems = new Ext.menu.Menu({cls: "pimcore_navigation_flyout"});
+            menuItems = new Ext.menu.Menu({
+                cls: "pimcore_navigation_flyout",
+                listeners: {
+                    "show": function (e) {
+                        Ext.get('pimcore_menu_ecommerce').addCls('active');
+                    },
+                    "hide": function (e) {
+                        Ext.get('pimcore_menu_ecommerce').removeCls('active');
+                    }
+                }
+            });
             toolbar.ecommerceMenu = menuItems;
         }
 
@@ -79,7 +89,7 @@ pimcore.bundle.EcommerceFramework.bundle = Class.create(pimcore.plugin.admin, {
             var pricingPanelId = "bundle_ecommerce_pricing_config";
             var item = {
                 text: t("bundle_ecommerce_pricing_rules"),
-                iconCls: "bundle_ecommerce_pricing_rules",
+                iconCls: "pimcore_nav_icon_commerce_pricing_rules",
                 handler: function () {
                     try {
                         pimcore.globalmanager.get(pricingPanelId).activate();
@@ -100,7 +110,7 @@ pimcore.bundle.EcommerceFramework.bundle = Class.create(pimcore.plugin.admin, {
             var orderPanelId = "bundle_ecommerce_back-office_order";
             var item = {
                 text: t("bundle_ecommerce_back-office_order"),
-                iconCls: "bundle_ecommerce_back-office_order",
+                iconCls: "pimcore_nav_icon_commerce_backoffice",
                 handler: function () {
                     try {
                         pimcore.globalmanager.get(orderPanelId).activate();
@@ -200,6 +210,17 @@ pimcore.bundle.EcommerceFramework.bundle = Class.create(pimcore.plugin.admin, {
                 object.tab.items.items[1].insert(1, tab.getLayout());
                 object.tab.items.items[1].updateLayout();
                 pimcore.layout.refresh();
+            }
+
+            if (pimcore.globalmanager.get("user").isAllowed("bundle_ecommerce_back-office_order")) {
+
+                if (type == "object" && object.data.general.o_className == "OnlineShopOrder") {
+                    var tab = new pimcore.bundle.EcommerceFramework.OrderTab(object, type);
+                    object.tab.items.items[1].insert(0, tab.getLayout());
+                    object.tab.items.items[1].updateLayout();
+                    object.tab.items.items[1].setActiveTab(0);
+                    pimcore.layout.refresh();
+                }
             }
 
         }

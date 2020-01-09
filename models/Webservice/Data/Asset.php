@@ -20,6 +20,9 @@ namespace Pimcore\Model\Webservice\Data;
 use Pimcore\Model;
 use Pimcore\Model\Webservice;
 
+/**
+ * @deprecated
+ */
 class Asset extends Model\Webservice\Data
 {
     /**
@@ -83,7 +86,7 @@ class Asset extends Model\Webservice\Data
     public $customSettings;
 
     /**
-     * @var
+     * @var array
      */
     public $metadata;
 
@@ -93,7 +96,12 @@ class Asset extends Model\Webservice\Data
     public $notes;
 
     /**
-     * @param $object
+     * @var array
+     */
+    public $childs;
+
+    /**
+     * @param Asset|Asset\Folder $object
      * @param null $options
      */
     public function map($object, $options = null)
@@ -107,9 +115,9 @@ class Asset extends Model\Webservice\Data
 
         $keys = get_object_vars($this);
         if (array_key_exists('childs', $keys)) {
-            if ($object->hasChilds()) {
+            if ($object->hasChildren()) {
                 $this->childs = [];
-                foreach ($object->getChilds() as $child) {
+                foreach ($object->getChildren() as $child) {
                     $item = new Webservice\Data\Asset\Listing\Item();
                     $item->id = $child->getId();
                     $item->type = $child->getType();
@@ -125,7 +133,7 @@ class Asset extends Model\Webservice\Data
     /**
      * @param $object
      * @param bool $disableMappingExceptions
-     * @param null $idMapper
+     * @param Webservice\IdMapperInterface|null $idMapper
      *
      * @throws \Exception
      */
@@ -136,6 +144,7 @@ class Asset extends Model\Webservice\Data
         $metadata = $this->metadata;
         if (is_array($metadata)) {
             $metadata = json_decode(json_encode($metadata), true);
+
             $object->setMetadata($metadata);
         }
     }

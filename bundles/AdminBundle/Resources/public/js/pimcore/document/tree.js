@@ -47,7 +47,7 @@ pimcore.document.tree = Class.create({
                 rootVisible: true,
                 loaderBaseParams: {},
                 treeId: "pimcore_panel_tree_documents",
-                treeIconCls: "pimcore_icon_document",
+                treeIconCls: "pimcore_icon_main_tree_document pimcore_icon_material",
                 treeTitle: t('documents'),
                 parentPanel: Ext.getCmp("pimcore_panel_tree_" + this.position)
             };
@@ -121,6 +121,7 @@ pimcore.document.tree = Class.create({
             id: this.config.treeId,
             title: this.config.treeTitle,
             iconCls: this.config.treeIconCls,
+            cls: this.config['rootVisible'] ? '' : 'pimcore_tree_no_root_node',
             autoScroll:true,
             autoLoad: false,
             animate: false,
@@ -188,38 +189,10 @@ pimcore.document.tree = Class.create({
             "itemmove": this.onTreeNodeMove.bind(this),
             "beforeitemmove": this.onTreeNodeBeforeMove.bind(this),
             "itemmouseenter": function (el, record, item, index, e, eOpts) {
-
-                if (record.data.qtipCfg) {
-                    var text = "<b>" + record.data.qtipCfg.title + "</b> | ";
-
-                    if (record.data.qtipCfg.text) {
-                        text += record.data.qtipCfg.text;
-                    } else {
-                        text += (t("type") + ": "+ t(record.data.type));
-                    }
-
-                    jQuery("#pimcore_tooltip").show();
-                    jQuery("#pimcore_tooltip").html(text);
-                    jQuery("#pimcore_tooltip").removeClass('right');
-
-                    var offsetTabPanel = jQuery("#pimcore_panel_tabs").offset();
-
-                    var offsetTreeNode = jQuery(item).offset();
-
-                    var parentTree = el.ownerCt.ownerCt;
-
-                    if(parentTree.region == 'west') {
-                        jQuery("#pimcore_tooltip").css({top: offsetTreeNode.top + 8, left: offsetTabPanel.left, right: 'auto'});
-                    }
-
-                    if(parentTree.region == 'east') {
-                        jQuery("#pimcore_tooltip").addClass('right');
-                        jQuery("#pimcore_tooltip").css({top: offsetTreeNode.top + 8, right: parentTree.width+35, left: 'auto'});
-                    }
-                }
+                pimcore.helpers.treeToolTipShow(el, record, item);
             },
             "itemmouseleave": function () {
-                jQuery("#pimcore_tooltip").hide();
+                pimcore.helpers.treeToolTipHide();
             }
         };
 
@@ -362,11 +335,11 @@ pimcore.document.tree = Class.create({
         } else {
             var pasteMenu = [];
             var pasteInheritanceMenu = [];
-
-            if ((record.data.type == "page" || record.data.type == "email" || record.data.type == "folder"
+            var childSupportedDocument = (record.data.type == "page" || record.data.type == "folder"
                 || record.data.type == "link" || record.data.type == "hardlink"
-                || record.data.type == "printpage" || record.data.type == "printcontainer")
-                && record.data.permissions.create) {
+                || record.data.type == "printpage" || record.data.type == "printcontainer");
+
+            if (childSupportedDocument && record.data.permissions.create) {
 
 
                 var addDocuments = perspectiveCfg.inTreeContextMenu("document.add");
@@ -589,7 +562,7 @@ pimcore.document.tree = Class.create({
 
 
             //paste
-            if (pimcore.cutDocument && record.data.permissions.create && perspectiveCfg.inTreeContextMenu("document.pasteCut")) {
+            if (childSupportedDocument && pimcore.cutDocument && record.data.permissions.create && perspectiveCfg.inTreeContextMenu("document.pasteCut")) {
                 pasteMenu.push({
                     text: t("paste_cut_element"),
                     iconCls: "pimcore_icon_paste",
@@ -734,7 +707,7 @@ pimcore.document.tree = Class.create({
                 }));
             }
 
-            if (record.data.permissions.create && perspectiveCfg.inTreeContextMenu("document.searchAndMove")) {
+            if (childSupportedDocument && record.data.permissions.create && perspectiveCfg.inTreeContextMenu("document.searchAndMove")) {
                 advancedMenuItems.push({
                     text: t('search_and_move'),
                     iconCls: "pimcore_icon_search pimcore_icon_overlay_go",
@@ -925,7 +898,7 @@ pimcore.document.tree = Class.create({
                     title: t("paste_as_language_variant"),
                     buttons: [{
                         text: t("cancel"),
-                        iconCls: "pimcore_icon_delete",
+                        iconCls: "pimcore_icon_cancel",
                         handler: function () {
                             win.close();
                         }
@@ -960,12 +933,13 @@ pimcore.document.tree = Class.create({
         };
 
         document_types.sort([{property: 'priority', direction: 'DESC'},
-            {property: 'name', direction: 'ASC'}]);
+            {property: 'translatedName', direction: 'ASC'}]);
 
         document_types.each(function (documentMenu, typeRecord) {
+            var text = Ext.util.Format.htmlEncode(typeRecord.get("translatedName"));
             if (typeRecord.get("type") == "page") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_page pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "page", typeRecord.get("id"))
                 };
@@ -973,35 +947,35 @@ pimcore.document.tree = Class.create({
             }
             else if (typeRecord.get("type") == "snippet") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_snippet pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "snippet", typeRecord.get("id"))
                 };
                 menuOption = "snippet";
             } else if (typeRecord.get("type") == "email") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_email pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "email", typeRecord.get("id"))
                 };
                 menuOption = "email";
             } else if (typeRecord.get("type") == "newsletter") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_newsletter pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "newsletter", typeRecord.get("id"))
                 };
                 menuOption = "newsletter";
             } else if (typeRecord.get("type") == "printpage") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_printpage pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "printpage", typeRecord.get("id"))
                 };
                 menuOption = "printPage";
             } else if (typeRecord.get("type") == "printcontainer") {
                 docTypeMenu = {
-                    text: ts(typeRecord.get("name")),
+                    text: text,
                     iconCls: "pimcore_icon_printcontainer pimcore_icon_overlay_add",
                     handler: this.addDocument.bind(this, tree, record, "printcontainer", typeRecord.get("id"))
                 };
@@ -1275,7 +1249,7 @@ pimcore.document.tree = Class.create({
             }],
             buttons: [{
                 text: t("cancel"),
-                iconCls: "pimcore_icon_delete",
+                iconCls: "pimcore_icon_cancel",
                 handler: function () {
                     win.close();
                 }

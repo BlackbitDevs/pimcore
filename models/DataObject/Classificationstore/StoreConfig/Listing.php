@@ -22,22 +22,27 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\DataObject\Classificationstore\StoreConfig\Listing\Dao getDao()
  * @method Model\DataObject\Classificationstore\StoreConfig[] load()
+ * @method Model\DataObject\Classificationstore\StoreConfig current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list.
-     *
      * @var array
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $list = [];
+    protected $list = null;
+
+    public function __construct()
+    {
+        $this->list =& $this->data;
+    }
 
     /**
-     * @return array
+     * @return Model\DataObject\Classificationstore\StoreConfig[]
      */
     public function getList()
     {
-        return $this->list;
+        return $this->getData();
     }
 
     /**
@@ -47,8 +52,6 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setList($theList)
     {
-        $this->list = $theList;
-
-        return $this;
+        return $this->setData($theList);
     }
 }

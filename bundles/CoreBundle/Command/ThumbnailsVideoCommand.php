@@ -61,7 +61,7 @@ class ThumbnailsVideoCommand extends AbstractCommand
         $thumbnails = [];
 
         $list = new Asset\Video\Thumbnail\Config\Listing();
-        $items = $list->load();
+        $items = $list->getThumbnails();
 
         foreach ($items as $item) {
             $thumbnails[] = $item->getName();
@@ -93,8 +93,8 @@ class ThumbnailsVideoCommand extends AbstractCommand
         for ($i = 0; $i < (ceil($total / $perLoop)); $i++) {
             $list->setLimit($perLoop);
             $list->setOffset($i * $perLoop);
-
             $videos = $list->load();
+
             foreach ($videos as $video) {
                 foreach ($thumbnails as $thumbnail) {
                     if ((empty($allowedThumbs) && !$input->getOption('system')) || in_array($thumbnail, $allowedThumbs)) {
@@ -115,8 +115,8 @@ class ThumbnailsVideoCommand extends AbstractCommand
     }
 
     /**
-     * @param $videoId
-     * @param $thumbnail
+     * @param int $videoId
+     * @param string $thumbnail
      */
     protected function waitTillFinished($videoId, $thumbnail)
     {

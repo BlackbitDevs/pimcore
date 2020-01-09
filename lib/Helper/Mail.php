@@ -256,7 +256,7 @@ CSS;
                     $absolutePath = $netUrl->getNormalizedURL();
                 }
 
-                $path = preg_quote($path);
+                $path = preg_quote($path, '!');
                 $string = preg_replace("!([\"'])$path([\"'])!is", '\\1' . $absolutePath . '\\2', $string);
             }
         }
@@ -418,7 +418,7 @@ CSS;
         $emailArray = preg_split('/,|;/', $emailString);
         if ($emailArray) {
             foreach ($emailArray as $emailStringEntry) {
-                $entryAddress = $emailStringEntry;
+                $entryAddress = trim($emailStringEntry);
                 $entryName = null;
                 $matches = [];
                 if (preg_match('/(.*)<(.*)>/', $entryAddress, $matches)) {

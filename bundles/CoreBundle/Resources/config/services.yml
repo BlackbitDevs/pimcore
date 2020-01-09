@@ -34,13 +34,6 @@ services:
     # INFRASTRUCTURE
     #
 
-    Pimcore\Model\Schedule\Manager\Procedural:
-        public: true
-        arguments:
-            $pidFileName: 'maintenance.pid'
-        tags:
-            - { name: monolog.logger, channel: pimcore.maintenance }
-
     # creates needed pimcore directories
     Pimcore\HttpKernel\CacheWarmer\MkdirCacheWarmer:
         public: false
@@ -63,11 +56,6 @@ services:
 
     Pimcore\Config\ReportConfigWriter: ~
 
-    Pimcore\FeatureToggles\FeatureManagerInterface:
-        public: true
-        shared: false
-        factory: ['Pimcore', getFeatureManager]
-
     #
     # CONTROLLERS
     #
@@ -88,16 +76,6 @@ services:
         arguments:
             $serviceControllers: '%pimcore.service_controllers%'
 
-
-    #
-    # COMMANDS
-    #
-
-    # auto-register all commands as services
-    Pimcore\Bundle\CoreBundle\Command\:
-        resource: '../../Command'
-        exclude: '../../Command/Bundle/Helper'
-
     #
     # HTTP/REST clients
     #
@@ -107,15 +85,21 @@ services:
         public: true
 
     pimcore.http_client:
+        alias: GuzzleHttp\Client
+        public: true
+
+    GuzzleHttp\Client:
         public: true
         class: \GuzzleHttp\Client
         factory: ['@Pimcore\Http\ClientFactory', createClient]
 
     pimcore.rest_client:
+        deprecated: ~
         alias: Pimcore\Tool\RestClient
         public: true
 
     Pimcore\Tool\RestClient:
+        deprecated: ~
         public: true
         arguments:
             - '@pimcore.http_client'
@@ -198,7 +182,21 @@ services:
     Pimcore\Model\DataObject\ClassDefinition\ClassDefinitionManager:
         public: true
 
+    Pimcore\Model\DataObject\ClassDefinition\ClassLayoutDefinitionManager:
+        public: true
+
     # Override Swiftmailer redirecting plugin
     swiftmailer.plugin.redirecting.abstract:
         abstract: true
         class: Pimcore\Mail\Plugins\RedirectingPlugin
+
+    Pimcore\Model\DataObject\QuantityValue\UnitConversionService:
+        public: true
+
+    Pimcore\Model\DataObject\QuantityValue\QuantityValueConverterInterface:
+        public: true
+        class: Pimcore\Model\DataObject\QuantityValue\DefaultConverter
+
+    Pimcore\Bundle\CoreBundle\Request\ParamConverter\DataObjectParamConverter:
+        tags:
+            - { name: request.param_converter, priority: -2, converter: data_object_converter }

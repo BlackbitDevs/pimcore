@@ -1,4 +1,8 @@
-# REST Webservice API
+# REST Webservice API (deprecated)
+
+> **Important**  
+> The REST API is deprecated as of Pimcore 6.4 and will be removed in Pimcore 7. 
+> If you're using this API, please consider migrating to the [Pimcore Data-Hub](https://github.com/pimcore/data-hub)
 
 Pimcore provides a REST web service interface to many entities of the system, such as assets, documents, objects, class definitions, translations, etc. 
 The webservices are not enabled by default, you have to do this in *Settings* > *System Settings* > *Web Service API*.
@@ -17,7 +21,7 @@ add the `apikey` to the request if you have a valid user session from the admin 
   
 > **Important: Frontend Applications**  
 > The Pimcore REST API is not intended to be used as a data provider for frontend applications (Vue.js, React, Angular, ...), 
-> please build your own actions for that purpose or use any existing bundles. 
+> please use the [Pimcore Data-Hub](https://github.com/pimcore/data-hub) (GraphQL interface) or build your own actions for that purpose or use any existing bundles. 
   
 [TOC]
 
@@ -239,6 +243,16 @@ condense parameter is set to true then only non-existing object ids are returned
 * **URL**: `http://YOUR-DOMAIN/webservice/rest/asset?apikey=[API-KEY]`
 * **Request body**: JSON-encoded asset data in the same format as returned by get asset by id for the data segment but with missing id field or id set to 0
 * **Returns**: JSON-encoded asset id
+
+**Example:**
+```json
+{
+	"data": "iVBORw0KGgoAAAANSUhEUgAAASwAAAEsBAMAAACLU5NGAAAAG1BMVEXMzMyWlpa...",
+	"parentId": 7, 
+	"type": "image",    
+	"filename": "rest-uploaded-file.jpg",
+}
+```
 
 ### Update Existing Asset
 * **Method**: PUT or POST

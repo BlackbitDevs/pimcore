@@ -89,10 +89,20 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     /**
      * @var bool
      */
+    public $border = false;
+
+    /**
+     * @var bool
+     */
     public $provideSplitView;
 
     /**
-     * @var
+     * @var string
+     */
+    public $tabPosition = 'top';
+
+    /**
+     * @var int
      */
     public $hideLabelsWhenTabsReached;
 
@@ -111,30 +121,33 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     /**
      * @see Data::getDataForEditmode
      *
-     * @param string $data
+     * @param DataObject\Localizedfield $localizedField
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
      *
      * @return array
      */
-    public function getDataForEditmode($data, $object = null, $params = [])
+    public function getDataForEditmode($localizedField, $object = null, $params = [])
     {
         $fieldData = [];
         $metaData = [];
 
-        if (!$data instanceof DataObject\Localizedfield) {
+        if (!$localizedField instanceof DataObject\Localizedfield) {
             return [];
         }
 
-        $result = $this->doGetDataForEditMode($data, $object, $fieldData, $metaData, 1, $params);
+        $result = $this->doGetDataForEditMode($localizedField, $object, $fieldData, $metaData, 1, $params);
 
         // replace the real data with the data for the editmode
         foreach ($result['data'] as $language => &$data) {
             foreach ($data as $key => &$value) {
-                $fieldDefinition = $this->getFielddefinition($key);
+                $fieldDefinition = $this->getFieldDefinition($key);
                 if ($fieldDefinition instanceof CalculatedValue) {
                     $childData = new DataObject\Data\CalculatedValue($fieldDefinition->getName());
-                    $childData->setContextualData('localizedfield', $this->getName(), null, $language);
+                    $ownerType = $params['context']['containerType'] ?? 'localizedfield';
+                    $ownerName = $params['fieldname'] ?? $this->getName();
+                    $index = $params['context']['containerKey'] ?? null;
+                    $childData->setContextualData($ownerType, $ownerName, $index, $language, null, null, $fieldDefinition);
                     $value = $fieldDefinition->getDataForEditmode($childData, $object, $params);
                 } else {
                     $value = $fieldDefinition->getDataForEditmode($value, $object, $params);
@@ -191,7 +204,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
                     $fieldData[$language][$key] = $fdata;
                     if (!$fd->isEmpty($fdata)) {
                         $inherited = $level > 1;
-                        if ($params['context'] && $params['context']['containerType'] == 'block') {
+                        if (isset($params['context']['containerType']) && $params['context']['containerType'] === 'block') {
                             $inherited = false;
                         }
 
@@ -201,7 +214,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
             }
         }
 
-        if ($params['context'] && $params['context']['containerType'] == 'block') {
+        if (isset($params['context']['containerType']) && $params['context']['containerType'] === 'block') {
             $inheritanceAllowed = false;
         }
 
@@ -228,7 +241,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
                 if ($foundEmptyValue) {
                     $parentData = null;
                     // still some values are passing, ask the parent
-                    if ($params['context'] && $params['context']['containerType'] == 'objectbrick') {
+                    if (isset($params['context']['containerType']) && $params['context']['containerType'] === 'objectbrick') {
                         $brickContainerGetter = 'get' . ucfirst($params['fieldname']);
                         $brickContainer = $parent->$brickContainerGetter();
                         $brickGetter = 'get' . ucfirst($params['context']['containerKey']);
@@ -279,10 +292,10 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
 
         if (!$localizedFields instanceof DataObject\Localizedfield) {
             $localizedFields = new DataObject\Localizedfield();
+            $context = isset($params['context']) ? $params['context'] : null;
+            $localizedFields->setContext($context);
         }
 
-        $context = isset($params['context']) ? $params['context'] : null;
-        $localizedFields->setContext($context);
         if ($object) {
             $localizedFields->setObject($object);
         }
@@ -290,7 +303,8 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
         if (is_array($data)) {
             foreach ($data as $language => $fields) {
                 foreach ($fields as $name => $fdata) {
-                    $fd = $this->getFielddefinition($name);
+                    $fd = $this->getFieldDefinition($name);
+                    $params['language'] = $language;
                     $localizedFields->setLocalizedValue(
                         $name,
                         $fd->getDataFromEditmode($fdata, $object, $params),
@@ -315,8 +329,8 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
         $result = new \stdClass();
         foreach ($this->getFieldDefinitions() as $fd) {
             $key = $fd->getName();
-            $context = $params['context'];
-            if ($context && $context['containerType'] == 'objectbrick') {
+            $context = $params['context'] ?? null;
+            if (isset($context['containerType']) && $context['containerType'] === 'objectbrick') {
                 $result->$key = 'NOT SUPPORTED';
             } else {
                 $result->$key = $object->{'get' . ucfirst($fd->getName())}();
@@ -397,6 +411,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     }
 
     /**
+     * @deprecated
      * @param Model\DataObject\AbstractObject $object
      * @param mixed $params
      *
@@ -460,10 +475,11 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     }
 
     /**
+     * @deprecated
      * @param mixed $value
      * @param null $object
      * @param mixed $params
-     * @param null $idMapper
+     * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
      * @return mixed|null|DataObject\Localizedfield
      *
@@ -525,7 +541,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
                         ).' ]'
                     );
                 }
-                $fd = $this->getFielddefinition($field->name);
+                $fd = $this->getFieldDefinition($field->name);
                 if (!$fd instanceof DataObject\ClassDefinition\Data) {
                     if ($idMapper && $idMapper->ignoreMappingFailures()) {
                         continue;
@@ -543,7 +559,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
 
                 $localizedFields->setLocalizedValue(
                     $field->name,
-                    $this->getFielddefinition($field->name)->getFromWebserviceImport(
+                    $this->getFieldDefinition($field->name)->getFromWebserviceImport(
                         $field->value,
                         $object,
                         $params,
@@ -587,11 +603,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
      */
     public function hasChildren()
     {
-        if (is_array($this->childs) && count($this->childs) > 0) {
-            return true;
-        }
-
-        return false;
+        return is_array($this->childs) && count($this->childs) > 0;
     }
 
     /**
@@ -768,6 +780,9 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
                     'containerKey' => $container->getType(),
                 ];
                 $lf->setContext($context);
+            } elseif ($container instanceof DataObject\Concrete) {
+                $context = ['object' => $container];
+                $lf->setContext($context);
             }
             $lf->setObject($object);
 
@@ -825,12 +840,12 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     }
 
     /**
-     * @param $name
+     * @param string $name
      * @param array $context additional contextual data
      *
-     * @return mixed
+     * @return DataObject\ClassDefinition\Data|null
      */
-    public function getFielddefinition($name, $context = [])
+    public function getFieldDefinition($name, $context = [])
     {
         $fds = $this->getFieldDefinitions($context);
         if (isset($fds[$name])) {
@@ -844,13 +859,13 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
             return $fieldDefinition;
         }
 
-        return;
+        return null;
     }
 
     /**
      * @param array $context additional contextual data
      *
-     * @return array
+     * @return Data[]
      */
     public function getFieldDefinitions($context = [])
     {
@@ -941,7 +956,9 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
 
         foreach ($data->getInternalData(true) as $language => $values) {
             foreach ($this->getFieldDefinitions() as $fd) {
-                $tags = $fd->getCacheTags($values[$fd->getName()], $tags);
+                if (isset($values[$fd->getName()])) {
+                    $tags = $fd->getCacheTags($values[$fd->getName()], $tags);
+                }
             }
         }
 
@@ -963,7 +980,9 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
 
         foreach ($data->getInternalData(true) as $language => $values) {
             foreach ($this->getFieldDefinitions() as $fd) {
-                $dependencies = array_merge($dependencies, $fd->resolveDependencies($values[$fd->getName()]));
+                if (isset($values[$fd->getName()])) {
+                    $dependencies = array_merge($dependencies, $fd->resolveDependencies($values[$fd->getName()]));
+                }
             }
         }
 
@@ -1008,6 +1027,22 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     public function getLayout()
     {
         return $this->layout;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getBorder(): bool
+    {
+        return $this->border;
+    }
+
+    /**
+     * @param bool $border
+     */
+    public function setBorder(bool $border): void
+    {
+        $this->border = $border;
     }
 
     /**
@@ -1079,6 +1114,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     public function checkValidity($data, $omitMandatoryCheck = false)
     {
         $conf = \Pimcore\Config::getSystemConfig();
+        $languages = [];
         if ($conf->general->validLanguages) {
             $languages = explode(',', $conf->general->validLanguages);
         }
@@ -1224,8 +1260,8 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
 
         foreach ($mapping as $language => $fields) {
             foreach ($fields as $key => $value) {
-                $fd = $this->getFielddefinition($key);
-                if ($fd & $fd->isDiffChangeAllowed($object)) {
+                $fd = $this->getFieldDefinition($key);
+                if ($fd && $fd->isDiffChangeAllowed($object)) {
                     if ($value == null) {
                         unset($localData[$language][$key]);
                     } else {
@@ -1300,7 +1336,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     }
 
     /**
-     * @return mixed
+     * @return int
      */
     public function getHideLabelsWhenTabsReached()
     {
@@ -1308,7 +1344,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     }
 
     /**
-     * @param mixed $hideLabelsWhenTabsReached
+     * @param int $hideLabelsWhenTabsReached
      *
      * @return $this
      */
@@ -1383,7 +1419,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
                 foreach ($items as $language => $languageData) {
                     $languageResult = [];
                     foreach ($languageData as $elementName => $elementData) {
-                        $fd = $this->getFielddefinition($elementName);
+                        $fd = $this->getFieldDefinition($elementName);
                         if (!$fd) {
                             // class definition seems to have changed
                             Logger::warn('class definition seems to have changed, element name: '.$elementName);
@@ -1421,7 +1457,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
             foreach ($value as $language => $languageData) {
                 $languageResult = [];
                 foreach ($languageData as $elementName => $elementData) {
-                    $fd = $this->getFielddefinition($elementName);
+                    $fd = $this->getFieldDefinition($elementName);
                     if (!$fd) {
                         // class definition seems to have changed
                         Logger::warn('class definition seems to have changed, element name: '.$elementName);
@@ -1448,5 +1484,26 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface
     public function supportsDirtyDetection()
     {
         return true;
+    }
+
+    public function isFilterable(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return string
+     */
+    public function getTabPosition(): string
+    {
+        return $this->tabPosition;
+    }
+
+    /**
+     * @param string $tabPosition
+     */
+    public function setTabPosition($tabPosition): void
+    {
+        $this->tabPosition = $tabPosition;
     }
 }

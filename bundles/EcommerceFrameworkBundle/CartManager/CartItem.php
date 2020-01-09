@@ -14,10 +14,11 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\CartManager;
 
+use Pimcore\Bundle\EcommerceFrameworkBundle\Factory;
 use Pimcore\Cache\Runtime;
 use Pimcore\Logger;
 
-class CartItem extends AbstractCartItem implements ICartItem
+class CartItem extends AbstractCartItem implements CartItemInterface
 {
     /**
      * @var int
@@ -43,7 +44,8 @@ class CartItem extends AbstractCartItem implements ICartItem
     public function getCart()
     {
         if (empty($this->cart)) {
-            $this->cart = Cart::getById($this->cartId);
+            $cartClass = '\\'.Factory::getInstance()->getCartManager()->getCartClassName();
+            $this->cart = $cartClass::getById($this->cartId);
         }
 
         return $this->cart;
@@ -89,7 +91,7 @@ class CartItem extends AbstractCartItem implements ICartItem
     }
 
     /**
-     * @return \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICartItem[]
+     * @return CartItemInterface[]
      */
     public function getSubItems()
     {

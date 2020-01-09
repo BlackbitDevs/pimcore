@@ -62,6 +62,10 @@ abstract class DocumentControllerBase extends AdminController implements Evented
                         $property->setDataFromEditmode($value);
                         $property->setInheritable($propertyData['inheritable']);
 
+                        if ($propertyName == 'language') {
+                            $property->setInherited($this->getPropertyInheritance($document, $propertyName, $value));
+                        }
+
                         $properties[$propertyName] = $property;
                     } catch (\Exception $e) {
                         Logger::warning("Can't add " . $propertyName . ' to document ' . $document->getRealFullPath());
@@ -134,7 +138,7 @@ abstract class DocumentControllerBase extends AdminController implements Evented
         if ($request->get('data')) {
             $data = $this->decodeJson($request->get('data'));
             foreach ($data as $name => $value) {
-                $data = $value['data'];
+                $data = $value['data'] ?? null;
                 $type = $value['type'];
                 $document->setRawElement($name, $type, $data);
             }
@@ -175,8 +179,8 @@ abstract class DocumentControllerBase extends AdminController implements Evented
                 $document = $this->getLatestVersion($document);
             }
 
-            // set _fulldump otherwise the properties will be removed because of the session-serialize
-            $document->_fulldump = true;
+            // set dump state to true otherwise the properties will be removed because of the session-serialize
+            $document->setInDumpState(true);
             $this->setValuesToDocument($request, $document);
 
             $session->set($key, $document);
@@ -204,6 +208,39 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
+     * @param Model\Document $doc
+     *
+     * @return Model\Document|null $sessionDocument
+     */
+    protected function getFromSession($doc)
+    {
+        $sessionDocument = null;
+
+        if ($doc instanceof Model\Document) {
+            // check if there's a document in session which should be used as data-source
+            // see also PageController::clearEditableDataAction() | this is necessary to reset all fields and to get rid of
+            // outdated and unused data elements in this document (eg. entries of area-blocks)
+            $sessionDocument = Session::useSession(function (AttributeBagInterface $session) use ($doc) {
+                $documentKey = 'document_' . $doc->getId();
+                $useForSaveKey = 'document_' . $doc->getId() . '_useForSave';
+
+                if ($session->has($documentKey) && $session->has($useForSaveKey)) {
+                    if ($session->get($useForSaveKey)) {
+                        // only use the page from the session once
+                        $session->remove($useForSaveKey);
+
+                        return $session->get($documentKey);
+                    }
+                }
+
+                return null;
+            }, 'pimcore_documents');
+        }
+
+        return $sessionDocument;
+    }
+
+    /**
      * @Route("/remove-from-session", methods={"DELETE"})
      *
      * @param Request $request
@@ -222,12 +259,28 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
-     * @param $document
+     * @param Model\Document $document
      */
     protected function minimizeProperties($document)
     {
         $properties = Model\Element\Service::minimizePropertiesForEditmode($document->getProperties());
         $document->setProperties($properties);
+    }
+
+    /**
+     * @param Model\Document $document
+     * @param string $propertyName
+     * @param string $propertyValue
+     *
+     * @return bool
+     */
+    protected function getPropertyInheritance(Model\Document $document, $propertyName, $propertyValue)
+    {
+        if ($document->getParent()) {
+            return $propertyValue == $document->getParent()->getProperty($propertyName);
+        }
+
+        return false;
     }
 
     /**

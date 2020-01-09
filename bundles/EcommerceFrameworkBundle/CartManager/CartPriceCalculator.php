@@ -17,28 +17,30 @@ declare(strict_types=1);
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\CartManager;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\ICartPriceModificator;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\CartPriceModificatorInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Exception\UnsupportedException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Factory;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IEnvironment;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\Currency;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IModificatedPrice;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPrice;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\ModificatedPriceInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\Price;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\TaxManagement\TaxEntry;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\IPricingManager;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\PriceInfoInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\PricingManagerInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\RuleInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class CartPriceCalculator implements ICartPriceCalculator
+class CartPriceCalculator implements CartPriceCalculatorInterface
 {
     /**
-     * @var IEnvironment
+     * @var EnvironmentInterface
      */
     protected $environment;
 
     /**
-     * @var ICart
+     * @var CartInterface
      */
     protected $cart;
 
@@ -48,12 +50,12 @@ class CartPriceCalculator implements ICartPriceCalculator
     protected $isCalculated = false;
 
     /**
-     * @var IPrice
+     * @var PriceInterface
      */
     protected $subTotal;
 
     /**
-     * @var IPrice
+     * @var PriceInterface
      */
     protected $grandTotal;
 
@@ -66,21 +68,31 @@ class CartPriceCalculator implements ICartPriceCalculator
     protected $modificatorConfig = [];
 
     /**
-     * @var ICartPriceModificator[]
+     * @var CartPriceModificatorInterface[]
      */
     protected $modificators = [];
 
     /**
-     * @var IModificatedPrice[]
+     * @var ModificatedPriceInterface[]
      */
     protected $modifications = [];
 
     /**
-     * @param IEnvironment $environment
-     * @param ICart $cart
+     * @var RuleInterface[]
+     */
+    protected $appliedPricingRules = [];
+
+    /**
+     * @var PricingManagerInterface
+     */
+    protected $pricingManager;
+
+    /**
+     * @param EnvironmentInterface $environment
+     * @param CartInterface $cart
      * @param array $modificatorConfig
      */
-    public function __construct(IEnvironment $environment, ICart $cart, array $modificatorConfig = [])
+    public function __construct(EnvironmentInterface $environment, CartInterface $cart, array $modificatorConfig = [])
     {
         $this->environment = $environment;
         $this->cart = $cart;
@@ -103,9 +115,9 @@ class CartPriceCalculator implements ICartPriceCalculator
         }
     }
 
-    protected function buildModificator(array $config): ICartPriceModificator
+    protected function buildModificator(array $config): CartPriceModificatorInterface
     {
-        /** @var ICartPriceModificator $modificator */
+        /** @var CartPriceModificatorInterface $modificator */
         $modificator = null;
 
         $className = $config['class'];
@@ -214,7 +226,7 @@ class CartPriceCalculator implements ICartPriceCalculator
 
         $this->modifications = [];
         foreach ($this->getModificators() as $modificator) {
-            /* @var \Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartPriceModificator\ICartPriceModificator $modificator */
+            /* @var CartPriceModificatorInterface $modificator */
             $modification = $modificator->modify($currentSubTotal, $this->cart);
             if ($modification !== null) {
                 $this->modifications[$modificator->getName()] = $modification;
@@ -248,7 +260,7 @@ class CartPriceCalculator implements ICartPriceCalculator
 
         if (!$ignorePricingRules) {
             // apply pricing rules
-            $this->getPricingManager()->applyCartRules($this->cart);
+            $this->appliedPricingRules = $this->getPricingManager()->applyCartRules($this->cart);
 
             //check if some pricing rule needs recalculation of sums
             if (!$this->isCalculated) {
@@ -257,7 +269,7 @@ class CartPriceCalculator implements ICartPriceCalculator
         }
     }
 
-    public function setPricingManager(IPricingManager $pricingManager)
+    public function setPricingManager(PricingManagerInterface $pricingManager)
     {
         $this->pricingManager = $pricingManager;
     }
@@ -287,17 +299,17 @@ class CartPriceCalculator implements ICartPriceCalculator
      * @param Decimal $amount
      * @param Currency $currency
      *
-     * @return IPrice
+     * @return PriceInterface
      */
-    protected function getDefaultPriceObject(Decimal $amount, Currency $currency): IPrice
+    protected function getDefaultPriceObject(Decimal $amount, Currency $currency): PriceInterface
     {
         return new Price($amount, $currency);
     }
 
     /**
-     * @return IPrice $price
+     * @return PriceInterface $price
      */
-    public function getGrandTotal(): IPrice
+    public function getGrandTotal(): PriceInterface
     {
         if (!$this->isCalculated) {
             $this->calculate();
@@ -307,7 +319,7 @@ class CartPriceCalculator implements ICartPriceCalculator
     }
 
     /**
-     * @return IModificatedPrice[] $priceModification
+     * @return ModificatedPriceInterface[] $priceModification
      */
     public function getPriceModifications(): array
     {
@@ -319,9 +331,9 @@ class CartPriceCalculator implements ICartPriceCalculator
     }
 
     /**
-     * @return IPrice $price
+     * @return PriceInterface $price
      */
-    public function getSubTotal(): IPrice
+    public function getSubTotal(): PriceInterface
     {
         if (!$this->isCalculated) {
             $this->calculate();
@@ -339,11 +351,11 @@ class CartPriceCalculator implements ICartPriceCalculator
     }
 
     /**
-     * @param ICartPriceModificator $modificator
+     * @param CartPriceModificatorInterface $modificator
      *
-     * @return ICartPriceCalculator
+     * @return CartPriceCalculatorInterface
      */
-    public function addModificator(ICartPriceModificator $modificator)
+    public function addModificator(CartPriceModificatorInterface $modificator)
     {
         $this->reset();
         $this->modificators[] = $modificator;
@@ -352,7 +364,7 @@ class CartPriceCalculator implements ICartPriceCalculator
     }
 
     /**
-     * @return ICartPriceModificator[]
+     * @return CartPriceModificatorInterface[]
      */
     public function getModificators(): array
     {
@@ -360,11 +372,11 @@ class CartPriceCalculator implements ICartPriceCalculator
     }
 
     /**
-     * @param ICartPriceModificator $modificator
+     * @param CartPriceModificatorInterface $modificator
      *
-     * @return ICartPriceCalculator
+     * @return CartPriceCalculatorInterface
      */
-    public function removeModificator(ICartPriceModificator $modificator)
+    public function removeModificator(CartPriceModificatorInterface $modificator)
     {
         foreach ($this->modificators as $key => $mod) {
             if ($mod === $modificator) {
@@ -373,5 +385,42 @@ class CartPriceCalculator implements ICartPriceCalculator
         }
 
         return $this;
+    }
+
+    /**
+     * @return RuleInterface[]
+     *
+     * @throws UnsupportedException
+     */
+    public function getAppliedPricingRules(): array
+    {
+        if (!$this->isCalculated) {
+            $this->calculate();
+        }
+
+        $itemRules = [];
+
+        foreach ($this->cart->getItems() as $item) {
+            $priceInfo = $item->getPriceInfo();
+            if ($priceInfo instanceof PriceInfoInterface) {
+                $itemRules = array_merge($itemRules, $priceInfo->getRules());
+            }
+        }
+
+        $itemRules = array_merge($this->appliedPricingRules, $itemRules);
+        $uniqueItemRules = [];
+        foreach ($itemRules as $rule) {
+            $uniqueItemRules[$rule->getId()] = $rule;
+        }
+
+        return array_values($uniqueItemRules);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isCalculated(): bool
+    {
+        return $this->isCalculated;
     }
 }

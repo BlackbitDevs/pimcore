@@ -16,7 +16,7 @@ namespace Pimcore\Bundle\EcommerceFrameworkBundle\FilterService;
 
 use Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\Exception\FilterTypeNotFoundException;
 use Pimcore\Bundle\EcommerceFrameworkBundle\FilterService\FilterType\AbstractFilterType;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\IProductList;
+use Pimcore\Bundle\EcommerceFrameworkBundle\IndexService\ProductList\ProductListInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinition;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractFilterDefinitionType;
 
@@ -69,23 +69,22 @@ class FilterService
      * filters
      *
      * @param AbstractFilterDefinition $filterObject filter definition object to use
-     * @param IProductList $productList              product list to use and add conditions to
+     * @param ProductListInterface $productList              product list to use and add conditions to
      * @param array $params                          request params with eventually set filter conditions
      *
      * @return array returns set filters
      */
-    public function initFilterService(AbstractFilterDefinition $filterObject, IProductList $productList, $params = [])
+    public function initFilterService(AbstractFilterDefinition $filterObject, ProductListInterface $productList, $params = [])
     {
         $currentFilter = [];
 
         if ($filterObject->getFilters()) {
             foreach ($filterObject->getFilters() as $filter) {
-
-                /**
-                 * @var $filter AbstractFilterDefinitionType
-                 */
+                /** @var AbstractFilterDefinitionType $filter */
                 $currentFilter = $this->addCondition($filter, $productList, $currentFilter, $params);
-
+            }
+            //do this in a separate loop in order to make sure that all filters are set when group by values are prepared
+            foreach ($filterObject->getFilters() as $filter) {
                 //prepare group by filters
                 $this->getFilterType($filter->getType())->prepareGroupByValues($filter, $productList);
             }
@@ -93,10 +92,7 @@ class FilterService
 
         if ($filterObject->getConditions()) {
             foreach ($filterObject->getConditions() as $condition) {
-
-                /**
-                 * @var $condition AbstractFilterDefinitionType
-                 */
+                /** @var AbstractFilterDefinitionType $condition */
                 $this->addCondition($condition, $productList, $currentFilter, [], true);
             }
         }
@@ -108,13 +104,13 @@ class FilterService
      * Returns filter frontend script for given filter type (delegates )
      *
      * @param AbstractFilterDefinitionType $filterDefinition filter definition to get frontend script for
-     * @param IProductList $productList                      current product list (with all set filters) to get
+     * @param ProductListInterface $productList                      current product list (with all set filters) to get
      *                                                       available options and counts
      * @param $currentFilter                                 array current filter for this filter definition
      *
      * @return string view snippet
      */
-    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter)
+    public function getFilterFrontend(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter)
     {
         return $this
             ->getFilterType($filterDefinition->getType())
@@ -125,14 +121,14 @@ class FilterService
      * Adds condition - delegates it to the AbstractFilterType instance
      *
      * @param AbstractFilterDefinitionType $filterDefinition
-     * @param IProductList $productList
+     * @param ProductListInterface $productList
      * @param $currentFilter
      * @param $params
      * @param bool $isPrecondition
      *
      * @return array updated currentFilter array
      */
-    public function addCondition(AbstractFilterDefinitionType $filterDefinition, IProductList $productList, $currentFilter, $params, $isPrecondition = false)
+    public function addCondition(AbstractFilterDefinitionType $filterDefinition, ProductListInterface $productList, $currentFilter, $params, $isPrecondition = false)
     {
         return $this
             ->getFilterType($filterDefinition->getType())

@@ -48,23 +48,19 @@ class ObjectBrickCommand extends AbstractStructureImportCommand
     /**
      * Try to load definition by name
      *
-     * @param $name
+     * @param string $name
      *
      * @return AbstractModel|null
      */
     protected function loadDefinition($name)
     {
-        try {
-            return Definition::getByKey($name);
-        } catch (\Exception $e) {
-            // noop
-        }
+        return Definition::getByKey($name);
     }
 
     /**
      * Create a new definition
      *
-     * @param $name
+     * @param string $name
      *
      * @return AbstractModel
      */

@@ -129,6 +129,7 @@ class Api
         // token cache
         $hash = crc32(serialize([$scope]));
         $tokenId = 'google-api.token.' . $hash;
+        $token = null;
         if ($tokenData = TmpStore::get($tokenId)) {
             $tokenInfo = json_decode($tokenData->getData(), true);
             if (($tokenInfo['created'] + $tokenInfo['expires_in']) > (time() - 900)) {
@@ -137,7 +138,7 @@ class Api
         }
 
         if (!$token) {
-            $client->refreshTokenWithAssertion();
+            $client->fetchAccessTokenWithAssertion();
             $token = json_encode($client->getAccessToken());
 
             // 1 hour (3600s) is the default expiry time

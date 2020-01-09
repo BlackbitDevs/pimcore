@@ -16,10 +16,15 @@ namespace Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment;
 
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\Currency;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\IStatus;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderAgentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Status;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPrice;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\StatusInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\RecurringPaymentInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentRequest\AbstractRequest;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\FormResponse;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\StartPaymentResponseInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\Price;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
 use Pimcore\Logger;
 use Pimcore\Model\DataObject\Listing\Concrete;
@@ -30,7 +35,7 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class Datatrans extends AbstractPayment
+class Datatrans extends AbstractPayment implements \Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\PaymentInterface, RecurringPaymentInterface
 {
     const TRANS_TYPE_DEBIT = '05';
     const TRANS_TYPE_CREDIT = '06';
@@ -69,7 +74,7 @@ class Datatrans extends AbstractPayment
     protected $authorizedData = [];
 
     /**
-     * @var IStatus
+     * @var StatusInterface
      */
     protected $paymentStatus;
 
@@ -97,17 +102,17 @@ class Datatrans extends AbstractPayment
         // set endpoint depending on mode
         if ('live' === $options['mode']) {
             $this->endpoint = array_merge($this->endpoint, [
-                'form' => 'https://payment.datatrans.biz/upp/jsp/upStart.jsp',
-                'script' => 'https://payment.datatrans.biz/upp/payment/js/datatrans-1.0.2.js',
-                'xmlAuthorize' => 'https://payment.datatrans.biz/upp/jsp/XML_authorize.jsp',
-                'xmlProcessor' => 'https://payment.datatrans.biz/upp/jsp/XML_processor.jsp',
+                'form' => 'https://pay.datatrans.com/upp/jsp/upStart.jsp',
+                'script' => 'https://pay.datatrans.com/upp/payment/js/datatrans-1.0.2.js',
+                'xmlAuthorize' => 'https://pay.datatrans.com/upp/jsp/XML_authorize.jsp',
+                'xmlProcessor' => 'https://pay.datatrans.com/upp/jsp/XML_processor.jsp',
             ]);
         } else {
             $this->endpoint = array_merge($this->endpoint, [
-                'form' => 'https://pilot.datatrans.biz/upp/jsp/upStart.jsp',
-                'script' => 'https://pilot.datatrans.biz/upp/payment/js/datatrans-1.0.2.js',
-                'xmlAuthorize' => 'https://pilot.datatrans.biz/upp/jsp/XML_authorize.jsp',
-                'xmlProcessor' => 'https://pilot.datatrans.biz/upp/jsp/XML_processor.jsp',
+                'form' => 'https://pay.sandbox.datatrans.com/upp/jsp/upStart.jsp',
+                'script' => 'https://pay.sandbox.datatrans.com/upp/payment/js/datatrans-1.0.2.js',
+                'xmlAuthorize' => 'https://pay.sandbox.datatrans.com/upp/jsp/XML_authorize.jsp',
+                'xmlProcessor' => 'https://pay.sandbox.datatrans.com/upp/jsp/XML_processor.jsp',
             ]);
         }
     }
@@ -151,12 +156,12 @@ class Datatrans extends AbstractPayment
 
     /**
      * @param array $formAttributes
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param array $config
      *
      * @return array
      */
-    protected function extendFormAttributes(array $formAttributes, IPrice $price, array $config): array
+    protected function extendFormAttributes(array $formAttributes, PriceInterface $price, array $config): array
     {
         return $formAttributes;
     }
@@ -164,7 +169,7 @@ class Datatrans extends AbstractPayment
     /**
      * start payment
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param array $config
      *
      * @return FormBuilderInterface
@@ -174,14 +179,14 @@ class Datatrans extends AbstractPayment
      * @see https://pilot.datatrans.biz/showcase/doc/Technical_Implementation_Guide.pdf
      * @see http://pilot.datatrans.biz/showcase/doc/XML_Authorisation.pdf
      */
-    public function initPayment(IPrice $price, array $config)
+    public function initPayment(PriceInterface $price, array $config)
     {
         // check params
         $required = $this->getRequiredRequestFields();
 
-        $config = array_intersect_key($config, $required);
+        $requiredConfigIntersect = array_intersect_key($config, $required);
 
-        if (count($required) != count($config)) {
+        if (count($required) != count($requiredConfigIntersect)) {
             throw new \Exception(sprintf('required fields are missing! required: %s', implode(', ', array_keys(array_diff_key($required, $config)))));
         }
 
@@ -221,6 +226,7 @@ class Datatrans extends AbstractPayment
         $formAttributes['data-success-url'] = $config['successUrl'];
         $formAttributes['data-error-url'] = $config['errorUrl'];
         $formAttributes['data-cancel-url'] = $config['cancelUrl'];
+        $formAttributes['data-upp-start-target'] = $config['uppStartTarget'] ? $config['uppStartTarget'] : '_top';
         if ($config['useAlias']) {
             $formAttributes['data-use-alias'] = 'true';
         }
@@ -282,11 +288,21 @@ class Datatrans extends AbstractPayment
     }
 
     /**
+     * @inheritDoc
+     */
+    public function startPayment(OrderAgentInterface $orderAgent, PriceInterface $price, AbstractRequest $config): StartPaymentResponseInterface
+    {
+        $response = $this->initPayment($price, $config->asArray());
+
+        return new FormResponse($orderAgent->getOrder(), $response);
+    }
+
+    /**
      * handle response / execute payment
      *
      * @param mixed $response
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      *
@@ -420,7 +436,7 @@ class Datatrans extends AbstractPayment
     /**
      * @inheritdoc
      */
-    public function executeDebit(IPrice $price = null, $reference = null)
+    public function executeDebit(PriceInterface $price = null, $reference = null)
     {
         $uppTransactionId = null;
 
@@ -490,7 +506,7 @@ class Datatrans extends AbstractPayment
     /**
      * @inheritdoc
      */
-    public function executeCredit(IPrice $price, $reference, $transactionId)
+    public function executeCredit(PriceInterface $price, $reference, $transactionId)
     {
         if (in_array($this->authorizedData['reqtype'], $this->getValidAuthorizationTypes()) && $this->authorizedData['uppTransactionId']) {
             // restore price object for payment status
@@ -549,13 +565,13 @@ class Datatrans extends AbstractPayment
     /**
      * Cancel authorization
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      * @param string $transactionId
      *
-     * @return IStatus
+     * @return StatusInterface
      */
-    public function executeAuthorizationCancel(IPrice $price, $reference, $transactionId)
+    public function executeAuthorizationCancel(PriceInterface $price, $reference, $transactionId)
     {
         $xml = $this->xmlCancelAuthorization(
             $price->getAmount()->asNumeric() * 100,

@@ -97,16 +97,6 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
     }
 
     /**
-     * @return int
-     *
-     * @deprecated use getCreationDate or getModificationDate instead
-     */
-    public function getDate()
-    {
-        return $this->getModificationDate();
-    }
-
-    /**
      * @param $date
      *
      * @return $this
@@ -197,10 +187,7 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
      * @param bool $create
      * @param bool $returnIdIfEmpty
      *
-     * @return static
-     *
-     * @throws \Exception
-     * @throws \Exception
+     * @return static|null
      */
     public static function getByKey($id, $create = false, $returnIdIfEmpty = false)
     {
@@ -258,16 +245,14 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
      * @param bool $returnIdIfEmpty - returns $id if no translation is available
      * @param string $language
      *
-     * @return string
-     *
-     * @throws \Exception
+     * @return string|null
      */
     public static function getByKeyLocalized($id, $create = false, $returnIdIfEmpty = false, $language = null)
     {
         if (!$language) {
             $language = \Pimcore::getContainer()->get('pimcore.locale')->findLocale();
             if (!$language) {
-                throw new \Exception("Couldn't determine current language.");
+                return null;
             }
         }
 
@@ -349,6 +334,7 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
             }
 
             //read data
+            $data = [];
             if (($handle = fopen(PIMCORE_SYSTEM_TEMP_DIRECTORY . '/import_translations', 'r')) !== false) {
                 while (($rowData = fgetcsv($handle, 0, $dialect->delimiter, $dialect->quotechar, $dialect->escapechar)) !== false) {
                     $data[] = $rowData;
@@ -423,6 +409,7 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
     }
 
     /**
+     * @deprecated
      * @param $data
      */
     public function getFromWebserviceImport($data)
@@ -434,6 +421,7 @@ abstract class AbstractTranslation extends Model\AbstractModel implements Transl
     }
 
     /**
+     * @deprecated
      * @return array
      */
     public function getForWebserviceExport()

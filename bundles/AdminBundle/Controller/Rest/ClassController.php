@@ -21,6 +21,9 @@ use Pimcore\Model\DataObject;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
+/**
+ * @deprecated
+ */
 class ClassController extends AbstractRestController
 {
     /**
@@ -100,11 +103,9 @@ class ClassController extends AbstractRestController
 
         $e = null;
 
-        try {
-            $definition = DataObject\Objectbrick\Definition::getByKey($id);
-
+        if ($definition = DataObject\Objectbrick\Definition::getByKey($id)) {
             return $this->createSuccessResponse($definition);
-        } catch (\Exception $e) {
+        } else {
             $this->getLogger()->error($e);
         }
 
@@ -158,11 +159,9 @@ class ClassController extends AbstractRestController
 
         $e = null;
 
-        try {
-            $definition = DataObject\Fieldcollection\Definition::getByKey($id);
-
+        if ($definition = DataObject\Fieldcollection\Definition::getByKey($id)) {
             return $this->createSuccessResponse($definition);
-        } catch (\Exception $e) {
+        } else {
             $this->getLogger()->error($e);
         }
 
@@ -319,7 +318,7 @@ class ClassController extends AbstractRestController
         $items = $list->getList();
 
         $relations = [];
-        /** @var $item DataObject\Classificationstore\CollectionGroupRelation */
+        /** @var DataObject\Classificationstore\CollectionGroupRelation $item */
         foreach ($items as $item) {
             $relations[] = $item->getObjectVars();
         }

@@ -22,22 +22,27 @@ use Pimcore\Model;
 /**
  * @method \Pimcore\Model\GridConfigShare\Listing\Dao getDao()
  * @method Model\GridConfigShare[] load()
+ * @method Model\GridConfigShare current()
  */
 class Listing extends Model\Listing\AbstractListing
 {
     /**
-     * Contains the results of the list. They are all an instance of GridConfigShare
-     *
-     * @var array
+     * @var array|null
+     * @deprecated use getter/setter methods or $this->data
      */
-    public $gridConfigShares = [];
+    protected $gridConfigShares = null;
+
+    public function __construct()
+    {
+        $this->gridConfigShares =& $this->data;
+    }
 
     /**
-     * @return array
+     * @return Model\GridConfigShare[]
      */
     public function getGridconfigShares()
     {
-        return $this->gridConfigShares;
+        return $this->getData();
     }
 
     /**
@@ -45,6 +50,6 @@ class Listing extends Model\Listing\AbstractListing
      */
     public function setGridconfigShares($gridconfigShares)
     {
-        $this->gridConfigShares = $gridconfigShares;
+        return $this->setData($gridconfigShares);
     }
 }

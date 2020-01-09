@@ -36,7 +36,7 @@ pimcore.object.tree = Class.create({
                 allowedClasses: null,
                 loaderBaseParams: {},
                 treeId: "pimcore_panel_tree_objects",
-                treeIconCls: "pimcore_icon_object",
+                treeIconCls: "pimcore_icon_main_tree_object pimcore_icon_material",
                 treeTitle: t('data_objects'),
                 parentPanel: parentPanel
             };
@@ -108,11 +108,12 @@ pimcore.object.tree = Class.create({
             region: "center",
             autoLoad: false,
             iconCls: this.config.treeIconCls,
+            cls: this.config['rootVisible'] ? '' : 'pimcore_tree_no_root_node',
             id: this.config.treeId,
             title: this.config.treeTitle,
             autoScroll: true,
             animate: false,
-            rootVisible: true,
+            rootVisible: this.config.rootVisible,
             bufferedRenderer: false,
             border: false,
             listeners: this.getTreeNodeListeners(),
@@ -176,38 +177,10 @@ pimcore.object.tree = Class.create({
             "itemmove": this.onTreeNodeMove.bind(this),
             "beforeitemmove": this.onTreeNodeBeforeMove.bind(this),
             "itemmouseenter": function (el, record, item, index, e, eOpts) {
-
-                if (record.data.qtipCfg) {
-                    var text = "<b>" + record.data.qtipCfg.title + "</b> | ";
-
-                    if (record.data.qtipCfg.text) {
-                        text += record.data.qtipCfg.text;
-                    } else {
-                        text += (t("type") + ": "+ t(record.data.type));
-                    }
-
-                    jQuery("#pimcore_tooltip").show();
-                    jQuery("#pimcore_tooltip").html(text);
-                    jQuery("#pimcore_tooltip").removeClass('right');
-
-                    var offsetTabPanel = jQuery("#pimcore_panel_tabs").offset();
-
-                    var offsetTreeNode = jQuery(item).offset();
-
-                    var parentTree = el.ownerCt.ownerCt;
-
-                    if(parentTree.region == 'west') {
-                        jQuery("#pimcore_tooltip").css({top: offsetTreeNode.top + 8, left: offsetTabPanel.left, right: 'auto'});
-                    }
-
-                    if(parentTree.region == 'east') {
-                        jQuery("#pimcore_tooltip").addClass('right');
-                        jQuery("#pimcore_tooltip").css({top: offsetTreeNode.top + 8, right: parentTree.width+35, left: 'auto'});
-                    }
-                }
+                pimcore.helpers.treeToolTipShow(el, record, item);
             },
             "itemmouseleave": function () {
-                jQuery("#pimcore_tooltip").hide();
+                pimcore.helpers.treeToolTipHide();
             }
         };
 
@@ -250,9 +223,14 @@ pimcore.object.tree = Class.create({
     onTreeNodeMove: function (node, oldParent, newParent, index, eOpts ) {
         var tree = oldParent.getOwnerTree();
 
+        var pageOffset = 0;
+        if (node.parentNode.pagingData) {
+            pageOffset = node.parentNode.pagingData.offset;
+        }
+
         pimcore.elementservice.updateObject(node.data.id, {
             parentId: newParent.data.id,
-            index: index
+            index: index + pageOffset,
         }, function (newParent, oldParent, tree, response) {
             try{
                 var rdata = Ext.decode(response.responseText);
@@ -361,6 +339,8 @@ pimcore.object.tree = Class.create({
             var tmpMenuEntryImport;
             var $this = this;
 
+            object_types.sort([{property: 'translatedText', direction: 'ASC'}]);
+
             object_types.each(function (classRecord) {
 
                 if ($this.config.allowedClasses && !in_array(classRecord.get("id"), $this.config.allowedClasses)) {
@@ -374,7 +354,7 @@ pimcore.object.tree = Class.create({
                 };
 
                 // add special icon
-                if (classRecord.get("icon") != "/bundles/pimcoreadmin/img/flat-color-icons/timeline.svg") {
+                if (classRecord.get("icon") != "/bundles/pimcoreadmin/img/flat-color-icons/class.svg") {
                     tmpMenuEntry.icon = classRecord.get("icon");
                     tmpMenuEntry.iconCls = "pimcore_class_icon";
                 }
@@ -386,7 +366,7 @@ pimcore.object.tree = Class.create({
                 };
 
                 // add special icon
-                if (classRecord.get("icon") != "/bundles/pimcoreadmin/img/flat-color-icons/timeline.svg") {
+                if (classRecord.get("icon") != "/bundles/pimcoreadmin/img/flat-color-icons/class.svg") {
                     tmpMenuEntryImport.icon = classRecord.get("icon");
                     tmpMenuEntryImport.iconCls = "pimcore_class_icon";
                 }
@@ -682,7 +662,7 @@ pimcore.object.tree = Class.create({
                 });
                 sortByItems.push({
                     text: t('by_index'),
-                    iconCls: "pimcore_icon_show_in_tree",
+                    iconCls: "pimcore_icon_index_sorting",
                     handler: this.changeObjectChildrenSortBy.bind(this, tree, record, 'index')
                 });
             }
@@ -988,7 +968,7 @@ pimcore.object.tree = Class.create({
             elementType: "object",
             elementSubType: record.data.type,
             id: record.data.id,
-            default: record.data.text
+            default: Ext.util.Format.htmlDecode(record.data.text)
         };
         pimcore.elementservice.editElementKey(options);
     },

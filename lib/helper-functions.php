@@ -229,6 +229,8 @@ function array_to_html_attribute_string($array)
 
 /**
  * @param string $var
+ *
+ * @return string
  */
 function urlencode_ignore_slash($var)
 {
@@ -254,38 +256,27 @@ function urlencode_ignore_slash($var)
 }
 
 /**
- * @deprecated
+ * @param string $val
  *
- * @param  $filename
- *
- * @return bool
- */
-function is_includeable($filename)
-{
-    return \Pimcore\File::isIncludeable($filename);
-}
-
-/**
- * @param  $val
- *
- * @return int|string
+ * @return int
  */
 function return_bytes($val)
 {
     $val = trim($val);
     $last = strtolower($val[strlen($val) - 1]);
+    $bytes = (int)$val;
     switch ($last) {
         case 'g':
-            $val *= 1024;
+            $bytes *= 1024;
             // no break
         case 'm':
-            $val *= 1024;
+            $bytes *= 1024;
             // no break
         case 'k':
-            $val *= 1024;
+            $bytes *= 1024;
     }
 
-    return $val;
+    return $bytes;
 }
 
 /**

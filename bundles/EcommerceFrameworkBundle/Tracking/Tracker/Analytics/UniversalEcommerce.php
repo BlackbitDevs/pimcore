@@ -16,12 +16,12 @@ namespace Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\Tracker\Analytics;
 
 use Pimcore\Analytics\Google\Tracker as GoogleTracker;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractOrder;
-use Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\ICheckoutComplete;
+use Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\CheckoutCompleteInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\ProductAction;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\Transaction;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class UniversalEcommerce extends AbstractAnalyticsTracker implements ICheckoutComplete
+class UniversalEcommerce extends AbstractAnalyticsTracker implements CheckoutCompleteInterface
 {
     protected function configureOptions(OptionsResolver $resolver)
     {
@@ -83,13 +83,15 @@ class UniversalEcommerce extends AbstractAnalyticsTracker implements ICheckoutCo
      */
     protected function transformTransaction(Transaction $transaction)
     {
-        return $this->filterNullValues([
+        return $this->filterNullValues(array_merge([
             'id' => $transaction->getId(),                     // Transaction ID. Required.
             'affiliation' => $transaction->getAffiliation() ?: '',      // Affiliation or store name.
             'revenue' => $transaction->getTotal(),                  // Grand Total.
             'shipping' => round($transaction->getShipping(), 2),               // Shipping.
             'tax' => round($transaction->getTax(), 2)                     // Tax.
-        ]);
+        ],
+                $transaction->getAdditionalAttributes())
+        );
     }
 
     /**
@@ -101,13 +103,13 @@ class UniversalEcommerce extends AbstractAnalyticsTracker implements ICheckoutCo
      */
     protected function transformProductAction(ProductAction $item)
     {
-        return $this->filterNullValues([
+        return $this->filterNullValues(array_merge([
             'id' => $item->getTransactionId(),                    // Transaction ID. Required.
             'sku' => $item->getId(),                               // SKU/code.
             'name' => $item->getName(),                             // Product name. Required.
             'category' => $item->getCategory(),                         // Category or variation.
             'price' => round($item->getPrice(), 2),                            // Unit price.
             'quantity' => $item->getQuantity() ?: 1,                    // Quantity.
-        ]);
+        ], $item->getAdditionalAttributes()));
     }
 }

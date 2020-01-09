@@ -52,7 +52,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
     },
 
     getIconClass: function () {
-        return "pimcore_icon_href";
+        return "pimcore_icon_manyToOneRelation";
     },
 
     getLayout: function ($super) {
@@ -107,11 +107,14 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
             fields: ["text"]
         });
         classesStore.load({
-            "callback": function (allowedClasses, success) {
-                if (success) {
-                    Ext.getCmp('class_allowed_object_classes_' + this.uniqeFieldId).setValue(allowedClasses);
+            "callback": function (classesStore, allowedClasses, success) {
+                if (!classesStore.destroyed) {
+                    classesStore.insert(0, {'id': 'folder', 'text': 'folder'});
+                    if (success) {
+                        Ext.getCmp('class_allowed_object_classes_' + this.uniqeFieldId).setValue(allowedClasses);
+                    }
                 }
-            }.bind(this, allowedClasses)
+            }.bind(this, classesStore, allowedClasses)
         });
 
         var documentTypeStore = new Ext.data.JsonStore({
@@ -184,7 +187,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
                     {
                         xtype: 'textfield',
                         width: 600,
-                        fieldLabel: t("path_formatter_class"),
+                        fieldLabel: t("path_formatter_service"),
                         name: 'pathFormatterClass',
                         value: this.datax.pathFormatterClass
                     }
@@ -227,7 +230,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
                         width: 400
                     })
                 ]
-            }, 
+            },
             {
                 xtype:'fieldset',
                 title: t('asset_restrictions'),
@@ -377,5 +380,5 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
 
 });
 
-// @TODO BC layer, to be removed in v6.0
+// @TODO BC layer, to be removed in v7.0
 pimcore.object.classes.data.href = pimcore.object.classes.data.manyToOneRelation;

@@ -17,11 +17,11 @@ declare(strict_types=1);
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\CartManager;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\IEnvironment;
+use Pimcore\Bundle\EcommerceFrameworkBundle\EnvironmentInterface;
 use Symfony\Component\OptionsResolver\Options;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class CartFactory implements ICartFactory
+class CartFactory implements CartFactoryInterface
 {
     /**
      * @var array
@@ -45,22 +45,21 @@ class CartFactory implements ICartFactory
 
         $resolver->setDefaults([
             'cart_class_name' => Cart::class,
-            'guest_cart_class_name' => null
+            'guest_cart_class_name' => SessionCart::class,
+            'cart_readonly_mode' => AbstractCart::CART_READ_ONLY_MODE_STRICT
         ]);
 
         $resolver->setAllowedTypes('cart_class_name', 'string');
         $resolver->setAllowedTypes('guest_cart_class_name', 'string');
+        $resolver->setAllowedTypes('cart_readonly_mode', 'string');
 
-        $resolver->setNormalizer('guest_cart_class_name', function (Options $options, $value) {
-            if (null === $value) {
-                return $options['cartClassName'];
-            }
-
-            return $value;
-        });
+        $resolver->addAllowedValues('cart_readonly_mode', [
+            AbstractCart::CART_READ_ONLY_MODE_STRICT,
+            AbstractCart::CART_READ_ONLY_MODE_DEACTIVATED
+        ]);
     }
 
-    public function getCartClassName(IEnvironment $environment): string
+    public function getCartClassName(EnvironmentInterface $environment): string
     {
         if ($environment->getUseGuestCart()) {
             return $this->options['guest_cart_class_name'];
@@ -69,7 +68,7 @@ class CartFactory implements ICartFactory
         return $this->options['cart_class_name'];
     }
 
-    public function create(IEnvironment $environment, string $name, string $id = null, array $options = []): ICart
+    public function create(EnvironmentInterface $environment, string $name, string $id = null, array $options = []): CartInterface
     {
         $cart = $this->createCartInstance($environment, $name, $id, $options);
         $cart->save();
@@ -77,11 +76,11 @@ class CartFactory implements ICartFactory
         return $cart;
     }
 
-    protected function createCartInstance(IEnvironment $environment, string $name, string $id = null, array $options = []): ICart
+    protected function createCartInstance(EnvironmentInterface $environment, string $name, string $id = null, array $options = []): CartInterface
     {
         $class = $this->getCartClassName($environment);
 
-        /** @var ICart $cart */
+        /** @var CartInterface $cart */
         $cart = new $class;
 
         $cart->setName($name);
@@ -90,6 +89,18 @@ class CartFactory implements ICartFactory
             $cart->setId($id);
         }
 
+        if ($cart instanceof AbstractCart) {
+            $cart->setCurrentReadonlyMode($this->options['cart_readonly_mode']);
+        }
+
         return $cart;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCartReadOnlyMode(): string
+    {
+        return $this->options['cart_readonly_mode'];
     }
 }

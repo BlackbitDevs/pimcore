@@ -17,8 +17,10 @@ namespace Pimcore\Twig\Extension;
 use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\Document\Tag\BlockInterface;
 use Pimcore\Templating\Renderer\TagRenderer;
+use Twig\Extension\AbstractExtension;
+use Twig\TwigFunction;
 
-class DocumentTagExtension extends \Twig_Extension
+class DocumentTagExtension extends AbstractExtension
 {
     /**
      * @var TagRenderer
@@ -39,12 +41,35 @@ class DocumentTagExtension extends \Twig_Extension
     public function getFunctions()
     {
         return [
-            new \Twig_Function('pimcore_*', [$this, 'renderTag'], [
+            new TwigFunction('pimcore_*', [$this, 'renderTag'], [
                 'needs_context' => true,
                 'is_safe' => ['html'],
             ]),
-            new \Twig_Function('pimcore_iterate_block', [$this, 'getBlockIterator'])
+            new TwigFunction('pimcore_iterate_block', [$this, 'getBlockIterator'])
         ];
+
+        // those are just for auto-complete, not nice, but works ;-)
+        new TwigFunction('pimcore_area');
+        new TwigFunction('pimcore_areablock');
+        new TwigFunction('pimcore_block');
+        new TwigFunction('pimcore_checkbox');
+        new TwigFunction('pimcore_date');
+        new TwigFunction('pimcore_embed');
+        new TwigFunction('pimcore_image');
+        new TwigFunction('pimcore_input');
+        new TwigFunction('pimcore_link');
+        new TwigFunction('pimcore_multiselect');
+        new TwigFunction('pimcore_numeric');
+        new TwigFunction('pimcore_pdf');
+        new TwigFunction('pimcore_relation');
+        new TwigFunction('pimcore_relations');
+        new TwigFunction('pimcore_renderlet');
+        new TwigFunction('pimcore_scheduledblock');
+        new TwigFunction('pimcore_select');
+        new TwigFunction('pimcore_snippet');
+        new TwigFunction('pimcore_textarea');
+        new TwigFunction('pimcore_video');
+        new TwigFunction('pimcore_wysiwyg');
     }
 
     /**

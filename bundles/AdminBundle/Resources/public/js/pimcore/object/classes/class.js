@@ -62,17 +62,6 @@ pimcore.object.classes.klass = Class.create({
                 isTarget: true
             },
             listeners: this.getTreeNodeListeners(),
-            tbar: {
-                items: [
-                      "->",
-                    {
-                        text: t("configure_custom_layouts"),
-                        iconCls: "pimcore_icon_class pimcore_icon_overlay_add",
-                        hidden: (this instanceof pimcore.object.fieldcollections.field) || (this instanceof pimcore.object.objectbricks.field),
-                        handler: this.configureCustomLayouts.bind(this)
-                    }
-                ]
-            },
             viewConfig: {
                 plugins: {
                     ptype: 'treeviewdragdrop',
@@ -84,6 +73,13 @@ pimcore.object.classes.klass = Class.create({
         var displayId = this.data.key ? this.data.key : this.data.id; // because the field-collections use that also
 
         var panelButtons = [];
+
+        panelButtons.push({
+            text: t("configure_custom_layouts"),
+            iconCls: "pimcore_icon_class pimcore_icon_overlay_add",
+            hidden: (this instanceof pimcore.object.fieldcollections.field) || (this instanceof pimcore.object.objectbricks.field),
+            handler: this.configureCustomLayouts.bind(this)
+        });
 
         panelButtons.push({
             text: t('reload_definition'),
@@ -268,7 +264,7 @@ pimcore.object.classes.klass = Class.create({
         var dataMenu = [];
         var dataComps = Object.keys(pimcore.object.classes.data);
 
-        // @TODO: ignoredAliases are there for BC reasons, to be removed in v6
+        // @TODO: ignoredAliases are there for BC reasons, to be removed in v7
         var ignoredAliases = ['multihrefMetadata','objectsMetadata','objects','multihref','href','nonownerobjects'];
         ignoredAliases.forEach(function (item) {
             dataComps = array_remove_value(dataComps, item);
@@ -663,10 +659,23 @@ pimcore.object.classes.klass = Class.create({
             return "Pimcore\\Model\\DataObject\\" + ucfirst(name);
         };
 
+        var iconStore = new Ext.data.ArrayStore({
+            proxy: {
+                url: '/admin/class/get-icons',
+                type: 'ajax',
+                reader: {
+                    type: 'json'
+                },
+                extraParams: {
+                    classId: this.getId()
+                }
+            },
+            fields: ["text", "value"]
+        });
         var iconField = new Ext.form.field.Text({
-            fieldLabel: t("icon"),
+            id: "iconfield-" + this.getId(),
             name: "icon",
-            width: 600,
+            width: 396,
             value: this.data.icon,
             listeners: {
                 "afterrender": function (el) {
@@ -677,7 +686,7 @@ pimcore.object.classes.klass = Class.create({
 
         this.rootPanel = new Ext.form.FormPanel({
             title: '<b>' + t("general_settings") + '</b>',
-            bodyStyle: 'padding: 10px; border-top: 1px solid #606060 !important;',
+            bodyStyle: 'padding: 10px;',
             defaults: {
                 labelWidth: 200
             },
@@ -763,15 +772,32 @@ pimcore.object.classes.klass = Class.create({
                 {
                     xtype: "fieldcontainer",
                     layout: "hbox",
+                    fieldLabel: t("icon"),
                     defaults: {
                         labelWidth: 200
                     },
                     items: [
-                        iconField, {
+                        iconField,
+                        {
+                            xtype: "combobox",
+                            store: iconStore,
+                            width: 50,
+                            valueField: 'value',
+                            displayField: 'text',
+                            listeners: {
+                                select: function (ele, rec, idx) {
+                                    var icon = ele.container.down("#iconfield-" + this.getId());
+                                    var newValue = rec.data.value;
+                                    icon.component.setValue(newValue);
+                                    icon.component.inputEl.applyStyles("background:url(" + newValue + ") right center no-repeat;");
+                                    return newValue;
+                                }.bind(this)
+                            }
+                        },
+                        {
                             iconCls: "pimcore_icon_refresh",
                             xtype: "button",
                             tooltip: t("refresh"),
-                            style: "margin-right: 5px;",
                             handler: function(iconField) {
                                 iconField.inputEl.applyStyles("background:url(" + iconField.getValue() + ") right center no-repeat;");
                             }.bind(this, iconField)
@@ -808,6 +834,13 @@ pimcore.object.classes.klass = Class.create({
                     name: "encryption",
                     style: 'margin: 0',
                     checked: this.data.encryption
+                },
+                {
+                    xtype: "checkbox",
+                    fieldLabel: t("cache_raw_relation_data"),
+                    name: "cacheRawRelationData",
+                    style: 'margin: 0',
+                    checked: this.data.cacheRawRelationData
                 }, {
                     xtype: 'container',
                     html: t('encrypt_data_description'),

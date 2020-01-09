@@ -19,7 +19,7 @@ pimcore.document.settings_abstract = Class.create({
     },
 
     setDocumentType: function (field, newValue, oldValue) {
-        var allowedFields = ["module","controller","action","template","legacy"];
+        var allowedFields = ["module","controller","action","template"];
         var form = this.getLayout().getForm();
         var element = null;
 
@@ -223,19 +223,15 @@ pimcore.document.settings_abstract = Class.create({
         var updateComboBoxes = function (el) {
             var moduleEl =  Ext.getCmp("pimcore_document_settings_module_" + this.document.id);
             var controllerEl =  Ext.getCmp("pimcore_document_settings_controller_" + this.document.id);
-            controllerEl.getStore().reload({
-                params: {
-                    moduleName: moduleEl.getValue()
-                }
-            });
+            controllerEl.getStore().getProxy().extraParams.moduleName =  moduleEl.getValue();
+            controllerEl.getStore().reload();
 
             var actionEl =  Ext.getCmp("pimcore_document_settings_action_" + this.document.id);
-            actionEl.getStore().reload({
-                params: {
-                    moduleName: moduleEl.getValue(),
-                    controllerName: controllerEl.getValue()
-                }
-            });
+            actionEl.getStore().getProxy().extraParams = {
+                moduleName: moduleEl.getValue(),
+                controllerName: controllerEl.getValue()
+            };
+            actionEl.getStore().reload();
 
         }.bind(this);
 
@@ -266,7 +262,7 @@ pimcore.document.settings_abstract = Class.create({
                 },
                 {
                     xtype:'combo',
-                    fieldLabel: t('bundle') + "(" + t('optional') + ")",
+                    fieldLabel: t('bundle') + " (" + t('optional') + ")",
                     itemId: "bundle",
                     displayField: 'name',
                     valueField: 'name',
@@ -298,7 +294,6 @@ pimcore.document.settings_abstract = Class.create({
                     displayField: 'name',
                     valueField: 'name',
                     name: "controller",
-                    queryMode: "local",
                     disableKeyFilter: true,
                     store: new Ext.data.Store({
                         autoDestroy: true,
@@ -353,7 +348,6 @@ pimcore.document.settings_abstract = Class.create({
                     }),
                     triggerAction: "all",
                     id: "pimcore_document_settings_action_" + this.document.id,
-                    queryMode: "local",
                     value: this.document.data.action,
                     matchFieldWidth: false,
                     listConfig: {
@@ -367,7 +361,7 @@ pimcore.document.settings_abstract = Class.create({
                     valueField: 'path',
                     name: "template",
                     disableKeyFilter: true,
-                    queryMode: "local",
+                    queryMode: "remote",
                     store: new Ext.data.Store({
                         autoDestroy: true,
                         autoLoad: false,
@@ -389,14 +383,6 @@ pimcore.document.settings_abstract = Class.create({
                     }
                 }
             ]
-        });
-
-        fieldSet.add({
-            xtype: "checkbox",
-            fieldLabel: t("legacy_mode"),
-            name: "legacy",
-            checked: this.document.data.legacy,
-            hidden: !pimcore.settings.isLegacyModeAvailable
         });
 
         return fieldSet;

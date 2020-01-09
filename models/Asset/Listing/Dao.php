@@ -26,7 +26,9 @@ use Pimcore\Model;
  */
 class Dao extends Model\Listing\Dao\AbstractDao
 {
-    /** @var Callback function */
+    /**
+     * @var \Closure
+     */
     protected $onCreateQueryCallback;
 
     /**
@@ -39,7 +41,7 @@ class Dao extends Model\Listing\Dao\AbstractDao
         $assets = [];
 
         $select = $this->getQuery(['id', 'type']);
-        $assetsData = $this->db->fetchAll($select, $this->model->getConditionVariables());
+        $assetsData = $this->db->fetchAll($select, $this->model->getConditionVariables(), $this->model->getConditionVariableTypes());
 
         foreach ($assetsData as $assetData) {
             if ($assetData['type']) {
@@ -86,8 +88,8 @@ class Dao extends Model\Listing\Dao\AbstractDao
      */
     public function loadIdList()
     {
-        $select = $this->getQuery(['id', 'type']);
-        $assetIds = $this->db->fetchCol($select, $this->model->getConditionVariables());
+        $select = $this->getQuery(['id']);
+        $assetIds = $this->db->fetchCol($select, $this->model->getConditionVariables(), $this->model->getConditionVariableTypes());
 
         return array_map('intval', $assetIds);
     }
@@ -98,7 +100,7 @@ class Dao extends Model\Listing\Dao\AbstractDao
     public function getCount()
     {
         $select = $this->getQuery([new Expression('COUNT(*)')]);
-        $amount = (int) $this->db->fetchOne($select, $this->model->getConditionVariables());
+        $amount = (int) $this->db->fetchOne($select, $this->model->getConditionVariables(), $this->model->getConditionVariableTypes());
 
         return $amount;
     }
@@ -113,7 +115,7 @@ class Dao extends Model\Listing\Dao\AbstractDao
         $select->reset(QueryBuilder::LIMIT_OFFSET);
         $select->reset(QueryBuilder::ORDER);
 
-        $amount = (int) $this->db->fetchOne($select, $this->model->getConditionVariables());
+        $amount = (int) $this->db->fetchOne($select, $this->model->getConditionVariables(), $this->model->getConditionVariableTypes());
 
         return $amount;
     }

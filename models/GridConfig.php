@@ -20,7 +20,7 @@ namespace Pimcore\Model;
 use Pimcore\Db;
 
 /**
- * @method \Pimcore\Model\Version\Dao getDao()
+ * @method \Pimcore\Model\GridConfig\Dao getDao()
  */
 class GridConfig extends AbstractModel
 {
@@ -72,6 +72,11 @@ class GridConfig extends AbstractModel
      * @var bool
      */
     public $shareGlobally;
+
+    /**
+     * @var string
+     */
+    public $type = 'object';
 
     /**
      * @param int $id
@@ -274,5 +279,21 @@ class GridConfig extends AbstractModel
     public function setShareGlobally($shareGlobally)
     {
         $this->shareGlobally = $shareGlobally;
+    }
+
+    /**
+     * @return string
+     */
+    public function getType()
+    {
+        return $this->type;
+    }
+
+    /**
+     * @param string $type
+     */
+    public function setType(string $type)
+    {
+        $this->type = $type;
     }
 }

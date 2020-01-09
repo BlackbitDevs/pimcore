@@ -26,8 +26,6 @@ use Pimcore\Tool\Serialize;
  */
 class Dao extends Model\Element\Dao
 {
-    use Model\Element\ChildsCompatibilityTrait;
-
     /**
      * Fetch a row by an id from the database and assign variables to the document model.
      *
@@ -44,7 +42,7 @@ class Dao extends Model\Element\Dao
         } catch (\Exception $e) {
         }
 
-        if ($data['id'] > 0) {
+        if (!empty($data['id'])) {
             $this->assignVariablesToModel($data);
         } else {
             throw new \Exception('Document with the ID ' . $id . " doesn't exists");
@@ -79,98 +77,83 @@ class Dao extends Model\Element\Dao
         }
     }
 
-    /**
-     * Insert a new row to the database.
-     *
-     * @throws \Exception
-     */
     public function create()
     {
-        try {
-            $this->db->insert('documents', [
-                'key' => $this->model->getKey(),
-                'path' => $this->model->getRealPath(),
-                'parentId' => $this->model->getParentId(),
-                'index' => 0
-            ]);
+        $this->db->insert('documents', [
+            'key' => $this->model->getKey(),
+            'path' => $this->model->getRealPath(),
+            'parentId' => $this->model->getParentId(),
+            'index' => 0
+        ]);
 
-            $this->model->setId($this->db->lastInsertId());
+        $this->model->setId($this->db->lastInsertId());
 
-            if (!$this->model->getKey()) {
-                $this->model->setKey($this->model->getId());
-            }
-        } catch (\Exception $e) {
-            throw $e;
+        if (!$this->model->getKey()) {
+            $this->model->setKey($this->model->getId());
         }
     }
 
     /**
-     * Update the row in the database. (based on the model id)
-     *
      * @throws \Exception
      */
     public function update()
     {
-        try {
-            $typeSpecificTable = null;
-            $validColumnsTypeSpecific = [];
-            if (in_array($this->model->getType(), ['email', 'newsletter', 'hardlink', 'link', 'page', 'snippet'])) {
-                $typeSpecificTable = 'documents_' . $this->model->getType();
-                $validColumnsTypeSpecific = $this->getValidTableColumns($typeSpecificTable);
-            }
-
-            $this->model->setModificationDate(time());
-
-            $document = $this->model->getObjectVars();
-
-            $dataDocument = [];
-            $dataTypeSpecific = [];
-
-            foreach ($document as $key => $value) {
-
-                // check if the getter exists
-                $getter = 'get' . ucfirst($key);
-                if (!method_exists($this->model, $getter)) {
-                    continue;
-                }
-
-                // get the value from the getter
-                if (in_array($key, $this->getValidTableColumns('documents')) || in_array($key, $validColumnsTypeSpecific)) {
-                    $value = $this->model->$getter();
-                } else {
-                    continue;
-                }
-
-                if (is_bool($value)) {
-                    $value = (int)$value;
-                }
-                if (is_array($value)) {
-                    $value = Serialize::serialize($value);
-                }
-
-                if (in_array($key, $this->getValidTableColumns('documents'))) {
-                    $dataDocument[$key] = $value;
-                }
-                if (in_array($key, $validColumnsTypeSpecific)) {
-                    $dataTypeSpecific[$key] = $value;
-                }
-            }
-
-            // use the real document path, just for the case that a documents gets saved in the frontend
-            // and the page is within a site. see also: PIMCORE-2684
-            $dataDocument['path'] = $this->model->getRealPath();
-
-            // update the values in the database
-            $this->db->insertOrUpdate('documents', $dataDocument);
-
-            if ($typeSpecificTable) {
-                $this->db->insertOrUpdate($typeSpecificTable, $dataTypeSpecific);
-            }
-
-            $this->updateLocks();
-        } catch (\Exception $e) {
-            throw $e;
+        $typeSpecificTable = null;
+        $validColumnsTypeSpecific = [];
+        if (in_array($this->model->getType(), ['email', 'newsletter', 'hardlink', 'link', 'page', 'snippet'])) {
+            $typeSpecificTable = 'documents_' . $this->model->getType();
+            $validColumnsTypeSpecific = $this->getValidTableColumns($typeSpecificTable);
         }
+
+        $this->model->setModificationDate(time());
+
+        $document = $this->model->getObjectVars();
+
+        $dataDocument = [];
+        $dataTypeSpecific = [];
+
+        foreach ($document as $key => $value) {
+
+            // check if the getter exists
+            $getter = 'get' . ucfirst($key);
+            if (!method_exists($this->model, $getter)) {
+                continue;
+            }
+
+            // get the value from the getter
+            if (in_array($key, $this->getValidTableColumns('documents')) || in_array($key, $validColumnsTypeSpecific)) {
+                $value = $this->model->$getter();
+            } else {
+                continue;
+            }
+
+            if (is_bool($value)) {
+                $value = (int)$value;
+            }
+            if (is_array($value)) {
+                $value = Serialize::serialize($value);
+            }
+
+            if (in_array($key, $this->getValidTableColumns('documents'))) {
+                $dataDocument[$key] = $value;
+            }
+            if (in_array($key, $validColumnsTypeSpecific)) {
+                $dataTypeSpecific[$key] = $value;
+            }
+        }
+
+        // use the real document path, just for the case that a documents gets saved in the frontend
+        // and the page is within a site. see also: PIMCORE-2684
+        $dataDocument['path'] = $this->model->getRealPath();
+
+        // update the values in the database
+        $this->db->insertOrUpdate('documents', $dataDocument);
+
+        if ($typeSpecificTable) {
+            $this->db->insertOrUpdate($typeSpecificTable, $dataTypeSpecific);
+        }
+
+        $this->updateLocks();
     }
 
     /**
@@ -180,11 +163,7 @@ class Dao extends Model\Element\Dao
      */
     public function delete()
     {
-        try {
-            $this->db->delete('documents', ['id' => $this->model->getId()]);
-        } catch (\Exception $e) {
-            throw $e;
-        }
+        $this->db->delete('documents', ['id' => $this->model->getId()]);
     }
 
     /**
@@ -204,11 +183,13 @@ class Dao extends Model\Element\Dao
     /**
      * Updates children path in order to the old document path specified in the $oldPath parameter.
      *
+     * @internal
+     *
      * @param $oldPath
      *
      * @return array
      */
-    public function updateChildsPaths($oldPath)
+    public function updateChildPaths($oldPath)
     {
         //get documents to empty their cache
         $documents = $this->db->fetchCol('SELECT id FROM documents WHERE path LIKE ?', $oldPath . '%');
@@ -349,13 +330,23 @@ class Dao extends Model\Element\Dao
     }
 
     /**
-     * Checks if there are children.
+     * Quick check if there are children.
+     *
+     * @param bool $unpublished
      *
      * @return bool
      */
-    public function hasChildren()
+    public function hasChildren($unpublished = false)
     {
-        $c = $this->db->fetchOne('SELECT id FROM documents WHERE parentId = ? LIMIT 1', $this->model->getId());
+        $sql = 'SELECT id FROM documents WHERE parentId = ?';
+
+        if (Model\Document::doHideUnpublished() && !$unpublished) {
+            $sql .= ' AND published = 1';
+        }
+
+        $sql .= ' LIMIT 1';
+
+        $c = $this->db->fetchOne($sql, $this->model->getId());
 
         return (bool)$c;
     }
@@ -478,7 +469,7 @@ class Dao extends Model\Element\Dao
         $userIds[] = $user->getId();
 
         try {
-            $permissionsParent = $this->db->fetchOne('SELECT `' . $type . '` FROM users_workspaces_document WHERE cid IN (' . implode(',', $parentIds) . ') AND userId IN (' . implode(',', $userIds) . ') AND `' . $type . '`=1 ORDER BY LENGTH(cpath) DESC, ABS(userId-' . $user->getId() . ') ASC LIMIT 1');
+            $permissionsParent = $this->db->fetchOne('SELECT `' . $type . '` FROM users_workspaces_document WHERE cid IN (' . implode(',', $parentIds) . ') AND userId IN (' . implode(',', $userIds) . ') ORDER BY LENGTH(cpath) DESC, ABS(userId-' . $user->getId() . ') ASC LIMIT 1');
 
             if ($permissionsParent) {
                 return true;
@@ -486,14 +477,14 @@ class Dao extends Model\Element\Dao
 
             // exception for list permission
             if (empty($permissionsParent) && $type == 'list') {
-                // check for childs with permissions
+                // check for children with permissions
                 $path = $this->model->getRealFullPath() . '/';
                 if ($this->model->getId() == 1) {
                     $path = '/';
                 }
 
-                $permissionsChilds = $this->db->fetchOne('SELECT list FROM users_workspaces_document WHERE cpath LIKE ? AND userId IN (' . implode(',', $userIds) . ') AND list = 1 LIMIT 1', $path . '%');
-                if ($permissionsChilds) {
+                $permissionsChildren = $this->db->fetchOne('SELECT list FROM users_workspaces_document WHERE cpath LIKE ? AND userId IN (' . implode(',', $userIds) . ') AND list = 1 LIMIT 1', $path . '%');
+                if ($permissionsChildren) {
                     return true;
                 }
             }

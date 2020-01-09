@@ -238,10 +238,17 @@ pimcore:
                                 # Send a email notification to a list of user roles (role names) when the transition get's applied
                                 notifyRoles:          []
 
+                                # Define which channel notification should be sent to, possible values "mail" and "pimcore_notification", default value is "mail".
+                                channelType:
+
+                                    # Default:
+                                    - mail
+
+
                                 # Type of mail source.
                                 mailType:             template # One of "template"; "pimcore_document"
 
-                                # Path to mail source - either Symfony path to template or fullpath to Pimcore document. Optional use $$lang$$ as placeholder for language.
+                                # Path to mail source - either Symfony path to template or fullpath to Pimcore document. Optional use %_locale% as placeholder for language.
                                 mailPath:             '@PimcoreCore/Workflow/NotificationEmail/notificationEmail.html.twig'
 
                         # Change published state of element while transition (only available for documents and data objects).

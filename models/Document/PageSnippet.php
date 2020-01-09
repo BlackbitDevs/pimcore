@@ -76,11 +76,6 @@ abstract class PageSnippet extends Model\Document
     protected $inheritedElements = [];
 
     /**
-     * @var bool
-     */
-    protected $legacy = false;
-
-    /**
      * @param array $params additional parameters (e.g. "versionNote" for the version note)
      *
      * @throws \Exception
@@ -346,10 +341,11 @@ abstract class PageSnippet extends Model\Document
                 $loader = \Pimcore::getContainer()->get('pimcore.implementation_loader.document.tag');
                 $element = $loader->build($type);
 
+                $this->elements = $this->elements ?? [];
                 $this->elements[$name] = $element;
                 $this->elements[$name]->setDataFromEditmode($data);
                 $this->elements[$name]->setName($name);
-                $this->elements[$name]->setDocumentId($this->getId());
+                $this->elements[$name]->setDocument($this);
             }
         } catch (\Exception $e) {
             Logger::warning("can't set element " . $name . ' with the type ' . $type . ' to the document: ' . $this->getRealFullPath());
@@ -362,7 +358,7 @@ abstract class PageSnippet extends Model\Document
      * Set an element with the given key/name
      *
      * @param string $name
-     * @param string $data
+     * @param Tag $data
      *
      * @return $this
      */
@@ -392,29 +388,29 @@ abstract class PageSnippet extends Model\Document
      *
      * @param string $name
      *
-     * @return Document\Tag
+     * @return Tag
      */
     public function getElement($name)
     {
         $elements = $this->getElements();
         if ($this->hasElement($name)) {
             return $elements[$name];
-        } else {
-            if (array_key_exists($name, $this->inheritedElements)) {
-                return $this->inheritedElements[$name];
-            }
+        }
 
-            // check for content master document (inherit data)
-            if ($contentMasterDocument = $this->getContentMasterDocument()) {
-                if ($contentMasterDocument instanceof Document\PageSnippet) {
-                    $inheritedElement = $contentMasterDocument->getElement($name);
-                    if ($inheritedElement) {
-                        $inheritedElement = clone $inheritedElement;
-                        $inheritedElement->setInherited(true);
-                        $this->inheritedElements[$name] = $inheritedElement;
+        if (array_key_exists($name, $this->inheritedElements)) {
+            return $this->inheritedElements[$name];
+        }
 
-                        return $inheritedElement;
-                    }
+        // check for content master document (inherit data)
+        if ($contentMasterDocument = $this->getContentMasterDocument()) {
+            if ($contentMasterDocument instanceof self) {
+                $inheritedElement = $contentMasterDocument->getElement($name);
+                if ($inheritedElement) {
+                    $inheritedElement = clone $inheritedElement;
+                    $inheritedElement->setInherited(true);
+                    $this->inheritedElements[$name] = $inheritedElement;
+
+                    return $inheritedElement;
                 }
             }
         }
@@ -434,7 +430,7 @@ abstract class PageSnippet extends Model\Document
         // this is that the path is automatically converted to ID => when setting directly from admin UI
         if (!is_numeric($contentMasterDocumentId) && !empty($contentMasterDocumentId)) {
             $contentMasterDocument = Document::getByPath($contentMasterDocumentId);
-            if ($contentMasterDocument instanceof Document\PageSnippet) {
+            if ($contentMasterDocument instanceof self) {
                 $contentMasterDocumentId = $contentMasterDocument->getId();
             }
         }
@@ -481,7 +477,7 @@ abstract class PageSnippet extends Model\Document
      */
     public function setContentMasterDocument($document)
     {
-        if ($document instanceof Document\PageSnippet) {
+        if ($document instanceof self) {
             $this->setContentMasterDocumentId($document->getId());
         } else {
             $this->setContentMasterDocumentId(null);
@@ -503,7 +499,7 @@ abstract class PageSnippet extends Model\Document
     }
 
     /**
-     * @return array
+     * @return Tag[]
      */
     public function getElements()
     {
@@ -527,7 +523,7 @@ abstract class PageSnippet extends Model\Document
     }
 
     /**
-     * @return array
+     * @return Model\Version[]
      */
     public function getVersions()
     {
@@ -574,40 +570,6 @@ abstract class PageSnippet extends Model\Document
         }
 
         return $finalVars;
-    }
-
-    /**
-     * returns true if document should be rendered with legacy stack
-     *
-     * @return bool
-     */
-    public function doRenderWithLegacyStack()
-    {
-        return $this->isLegacy();
-    }
-
-    /**
-     * @return bool
-     */
-    public function isLegacy()
-    {
-        return $this->legacy;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getLegacy()
-    {
-        return $this->isLegacy();
-    }
-
-    /**
-     * @param bool $legacy
-     */
-    public function setLegacy($legacy)
-    {
-        $this->legacy = (bool) $legacy;
     }
 
     /**

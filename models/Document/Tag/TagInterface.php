@@ -65,21 +65,9 @@ interface TagInterface
     public function setDataFromResource($data);
 
     /**
-     * Receives data from webservice import and fills the current tag's data
-     *
-     * @abstract
-     *
-     * @param  object $wsElement
-     * @param IdMapper $idMapper
-     */
-    //    JAIC: $idMapper is needed for REST webservice import. However, cannot just add this to
-    //    the interface as otherwise all tags would have to implement it including those defined
-    //    in (internal & external) plugins which are already in use.
-    //    public function getFromWebserviceImport($wsElement, $idMapper = null);
-
-    /**
      * Returns the current tag's data for web service export
      *
+     * @deprecated
      * @param $document
      * @param mixed $params
      * @abstract
@@ -87,4 +75,9 @@ interface TagInterface
      * @return array
      */
     public function getForWebserviceExport($document = null, $params = []);
+
+    /**
+     * @return bool
+     */
+    public function isEmpty();
 }

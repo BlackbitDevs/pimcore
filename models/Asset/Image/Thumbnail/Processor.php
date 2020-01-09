@@ -18,7 +18,6 @@
 namespace Pimcore\Model\Asset\Image\Thumbnail;
 
 use Pimcore\File;
-use Pimcore\Image\Optimizer;
 use Pimcore\Logger;
 use Pimcore\Model\Asset;
 use Pimcore\Model\Tool\TmpStore;
@@ -55,6 +54,11 @@ class Processor
     ];
 
     /**
+     * @var null|bool
+     */
+    protected static $hasWebpSupport = null;
+
+    /**
      * @param $format
      * @param array $allowed
      * @param string $fallback
@@ -68,7 +72,7 @@ class Processor
             'tif' => 'tiff'
         ];
 
-        if (array_key_exists($format, $typeMappings)) {
+        if (isset($typeMappings[$format])) {
             $format = $typeMappings[$format];
         }
 
@@ -106,17 +110,20 @@ class Processor
 
         // simple detection for source type if SOURCE is selected
         if ($format == 'source' || empty($format)) {
-            $format = self::getAllowedFormat($fileExt, ['jpeg', 'gif', 'png'], 'png');
+            $format = self::getAllowedFormat($fileExt, ['pjpeg', 'jpeg', 'gif', 'png'], 'png');
+            if($format === 'jpeg') {
+                $format = 'pjpeg';
+            }
             $contentOptimizedFormat = true; // format can change depending of the content (alpha-channel, ...)
         }
 
         if ($format == 'print') {
             $format = self::getAllowedFormat($fileExt, ['svg', 'jpeg', 'png', 'tiff'], 'png');
 
-            if (($format == 'tiff') && \Pimcore\Tool::isFrontentRequestByAdmin()) {
+            if (($format == 'tiff') && \Pimcore\Tool::isFrontendRequestByAdmin()) {
                 // return a webformat in admin -> tiff cannot be displayed in browser
                 $format = 'png';
-                $deferred = false; // deferred is default, but it's not possible when using isFrontentRequestByAdmin()
+                $deferred = false; // deferred is default, but it's not possible when using isFrontendRequestByAdmin()
             } elseif ($format == 'tiff') {
                 $transformations = $config->getItems();
                 if (is_array($transformations) && count($transformations) > 0) {
@@ -132,21 +139,21 @@ class Processor
                 return $asset->getFullPath();
             }
         } elseif ($format == 'tiff') {
-            if (\Pimcore\Tool::isFrontentRequestByAdmin()) {
+            if (\Pimcore\Tool::isFrontendRequestByAdmin()) {
                 // return a webformat in admin -> tiff cannot be displayed in browser
                 $format = 'png';
-                $deferred = false; // deferred is default, but it's not possible when using isFrontentRequestByAdmin()
+                $deferred = false; // deferred is default, but it's not possible when using isFrontendRequestByAdmin()
             }
         }
 
         $image = Asset\Image::getImageTransformInstance();
 
-        if ($contentOptimizedFormat && Frontend::hasWebpSupport() && $image->supportsFormat('webp')) {
+        if ($contentOptimizedFormat && self::hasWebpSupport() && $image->supportsFormat('webp')) {
             $format = 'webp';
         }
 
         $thumbDir = $asset->getImageThumbnailSavePath() . '/image-thumb__' . $asset->getId() . '__' . $config->getName();
-        $filename = preg_replace("/\." . preg_quote(File::getFileExtension($asset->getFilename())) . '/', '', $asset->getFilename());
+        $filename = preg_replace("/\." . preg_quote(File::getFileExtension($asset->getFilename()), '/') . '/', '', $asset->getFilename());
 
         // add custom suffix if available
         if ($config->getFilenameSuffix()) {
@@ -166,11 +173,12 @@ class Processor
         $fsPath = $thumbDir . '/' . $filename;
 
         // deferred means that the image will be generated on-the-fly (when requested by the browser)
-        // the configuration is saved for later use in Pimcore\Controller\Plugin\Thumbnail::routeStartup()
+        // the configuration is saved for later use in
+        // \Pimcore\Bundle\CoreBundle\Controller\PublicServicesController::thumbnailAction()
         // so that it can be used also with dynamic configurations
         if ($deferred) {
-            // only add the config to the TmpStore if necessary (the config is auto-generated)
-            if (!Config::getByName($config->getName())) {
+            // only add the config to the TmpStore if necessary (e.g. if the config is auto-generated)
+            if (!Config::exists($config->getName())) {
                 $configId = 'thumb_' . $asset->getId() . '__' . md5(self::returnPath($fsPath, false));
                 TmpStore::add($configId, $config, 'thumbnail_deferred');
             }
@@ -344,7 +352,7 @@ class Processor
             }
         }
 
-        if ($contentOptimizedFormat && !Frontend::hasWebpSupport()) {
+        if ($contentOptimizedFormat && !self::hasWebpSupport()) {
             $format = $image->getContentOptimizedFormat();
         }
 
@@ -355,8 +363,9 @@ class Processor
         $generated = true;
 
         if ($contentOptimizedFormat) {
-            $tmpStoreKey = str_replace(PIMCORE_TEMPORARY_DIRECTORY . '/', '', $fsPath);
-            TmpStore::add($tmpStoreKey, '-', 'image-optimize-queue');
+            $filePath = str_replace(PIMCORE_TEMPORARY_DIRECTORY . '/', '', $fsPath);
+            $tmpStoreKey = 'thumb_' . $asset->getId() . '__' . md5($filePath);
+            TmpStore::add($tmpStoreKey, $filePath, 'image-optimize-queue');
         }
 
         clearstatcache();
@@ -391,22 +400,24 @@ class Processor
         return $path;
     }
 
-    public static function processOptimizeQueue()
-    {
-        $ids = TmpStore::getIdsByTag('image-optimize-queue');
+    /**
+     * @param bool|null $webpSupport
+     * @return bool|null
+     */
+    public static function setHasWebpSupport(?bool $webpSupport):?bool {
+        $prevValue = self::$hasWebpSupport;
+        self::$hasWebpSupport = $webpSupport;
+        return $prevValue;
+    }
 
-        // id = path of image relative to PIMCORE_TEMPORARY_DIRECTORY
-        foreach ($ids as $id) {
-            $file = PIMCORE_TEMPORARY_DIRECTORY . '/' . $id;
-            if (file_exists($file)) {
-                $originalFilesize = filesize($file);
-                \Pimcore::getContainer()->get(Optimizer::class)->optimizeImage($file);
-                Logger::debug('Optimized image: ' . $file . ' saved ' . formatBytes($originalFilesize - filesize($file)));
-            } else {
-                Logger::debug('Skip optimizing of ' . $file . " because it doesn't exist anymore");
-            }
-
-            TmpStore::delete($id);
+    /**
+     * @return bool
+     */
+    protected static function hasWebpSupport(): bool {
+        if(self::$hasWebpSupport !== null) {
+            return self::$hasWebpSupport;
         }
+
+        return Frontend::hasWebpSupport();
     }
 }

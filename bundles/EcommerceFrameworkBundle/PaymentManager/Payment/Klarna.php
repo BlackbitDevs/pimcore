@@ -14,13 +14,17 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\IStatus;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderAgentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Status;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPrice;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\StatusInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentRequest\AbstractRequest;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\SnippetResponse;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\StartPaymentResponseInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class Klarna extends AbstractPayment
+class Klarna extends AbstractPayment implements \Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\PaymentInterface
 {
     /**
      * @var string
@@ -100,15 +104,15 @@ class Klarna extends AbstractPayment
     /**
      * Start payment
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param array $config
-     * @param ICart  $cart
+     * @param CartInterface  $cart
      *
      * @return string
      *
      * @throws \Exception
      */
-    public function initPayment(IPrice $price, array $config, ICart $cart = null)
+    public function initPayment(PriceInterface $price, array $config, CartInterface $cart = null)
     {
         // check params
         $required = [
@@ -141,6 +145,16 @@ class Klarna extends AbstractPayment
     }
 
     /**
+     * @inheritDoc
+     */
+    public function startPayment(OrderAgentInterface $orderAgent, PriceInterface $price, AbstractRequest $config): StartPaymentResponseInterface
+    {
+        $snippet = $this->initPayment($price, $config->asArray());
+
+        return new SnippetResponse($orderAgent->getOrder(), $snippet);
+    }
+
+    /**
      * @inheritdoc
      */
     public function handleResponse($response)
@@ -168,7 +182,7 @@ class Klarna extends AbstractPayment
         $order->fetch();
 
         $statMap = [
-            'checkout_complete' => IStatus::STATUS_AUTHORIZED, 'created' => IStatus::STATUS_CLEARED
+            'checkout_complete' => StatusInterface::STATUS_AUTHORIZED, 'created' => StatusInterface::STATUS_CLEARED
         ];
 
         return new Status(
@@ -177,7 +191,7 @@ class Klarna extends AbstractPayment
             $order['status'],
             array_key_exists($order['status'], $statMap)
                 ? $statMap[$order['status']]
-                : IStatus::STATUS_CANCELLED,
+                : StatusInterface::STATUS_CANCELLED,
             [
                 'klarna_amount' => $order['cart']['total_price_including_tax'],
                 'klarna_marshal' => json_encode($order->marshal()),
@@ -206,7 +220,7 @@ class Klarna extends AbstractPayment
     /**
      * @inheritdoc
      */
-    public function executeDebit(IPrice $price = null, $reference = null)
+    public function executeDebit(PriceInterface $price = null, $reference = null)
     {
         if ($price) {
             // TODO or not ?
@@ -228,8 +242,8 @@ class Klarna extends AbstractPayment
                 $order['id'],
                 $order['status'],
                 $order['status'] == 'created'
-                    ? IStatus::STATUS_CLEARED
-                    : IStatus::STATUS_CANCELLED,
+                    ? StatusInterface::STATUS_CLEARED
+                    : StatusInterface::STATUS_CANCELLED,
                 [
                     'klarna_amount' => $order['cart']['total_price_including_tax'],
                     'klarna_marshal' => json_encode($order->marshal())
@@ -241,17 +255,17 @@ class Klarna extends AbstractPayment
     /**
      * Executes credit
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      * @param $transactionId
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      *
      * @see http://developers.klarna.com/en/at+php/kco-v2/order-management-api#introduction
      */
-    public function executeCredit(IPrice $price, $reference, $transactionId)
+    public function executeCredit(PriceInterface $price, $reference, $transactionId)
     {
         // TODO: Implement executeCredit() method.
         throw new \Exception('not implemented');

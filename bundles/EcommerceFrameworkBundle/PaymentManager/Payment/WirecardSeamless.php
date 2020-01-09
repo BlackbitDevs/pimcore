@@ -14,19 +14,22 @@
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Payment;
 
-use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\ICart;
+use Pimcore\Bundle\EcommerceFrameworkBundle\CartManager\CartInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\CheckoutManager\CheckoutManager;
+use Pimcore\Bundle\EcommerceFrameworkBundle\EnvironmentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Factory;
-use Pimcore\Bundle\EcommerceFrameworkBundle\IEnvironment;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\AbstractPaymentInformation;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Model\Currency;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\IStatus;
+use Pimcore\Bundle\EcommerceFrameworkBundle\OrderManager\OrderAgentInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\Status;
-use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\IPrice;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\StatusInterface;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentRequest\AbstractRequest;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\SnippetResponse;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\StartPaymentResponse\StartPaymentResponseInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\Price;
+use Pimcore\Bundle\EcommerceFrameworkBundle\PriceSystem\PriceInterface;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Tools\SessionConfigurator;
 use Pimcore\Bundle\EcommerceFrameworkBundle\Type\Decimal;
-use Pimcore\FeatureToggles\Features\DebugMode;
 use Pimcore\Logger;
 use Pimcore\Model\DataObject\Fieldcollection\Data\OrderPriceModifications;
 use Pimcore\Model\DataObject\OnlineShopOrder;
@@ -36,7 +39,7 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Templating\EngineInterface;
 
-class WirecardSeamless extends AbstractPayment
+class WirecardSeamless extends AbstractPayment implements \Pimcore\Bundle\EcommerceFrameworkBundle\PaymentManager\V7\Payment\PaymentInterface
 {
     const HASH_ALGO_HMAC_SHA512 = 'hmac_sha512';
 
@@ -249,14 +252,14 @@ class WirecardSeamless extends AbstractPayment
     /**
      * Start payment
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param array $config
      *
      * @return mixed
      *
      * @throws \Exception
      */
-    public function initPayment(IPrice $price, array $config)
+    public function initPayment(PriceInterface $price, array $config)
     {
         $orderIdent = $config['orderIdent'];
 
@@ -300,14 +303,24 @@ class WirecardSeamless extends AbstractPayment
         return $this->templatingEngine->render($this->partial, $params);
     }
 
+    /**
+     * @inheritDoc
+     */
+    public function startPayment(OrderAgentInterface $orderAgent, PriceInterface $price, AbstractRequest $config): StartPaymentResponseInterface
+    {
+        $snippet = $this->initPayment($price, $config->asArray());
+
+        return new SnippetResponse($orderAgent->getOrder(), $snippet);
+    }
+
     public function getInitPaymentRedirectUrl($config)
     {
-        /** @var ICart $cart */
+        /** @var CartInterface $cart */
         if (!$cart = $config['cart']) {
             throw new \Exception('no cart sent');
         }
 
-        /** @var IPrice $price */
+        /** @var PriceInterface $price */
         $price = $config['price'] ?: $cart->getPriceCalculator()->getGrandTotal();
 
         $orderIdent = $this->encodeOrderIdent($config['paymentInfo']->getInternalPaymentId());
@@ -373,7 +386,7 @@ class WirecardSeamless extends AbstractPayment
         $redirectURL = $result['redirectUrl'];
 
         if (!$redirectURL) {
-            if (\Pimcore::inDebugMode(DebugMode::LOG)) {
+            if (\Pimcore::inDebugMode()) {
                 Logger::error('seamless result: ' . var_export($result, true));
             }
             throw new \Exception('redirect url could not be evalutated');
@@ -448,7 +461,7 @@ class WirecardSeamless extends AbstractPayment
 
         $priceModifications = $order->getPriceModifications();
         foreach ($priceModifications as $modification) {
-            /** @var $modification OrderPriceModifications */
+            /** @var OrderPriceModifications $modification */
             $net = $modification->getNetAmount();
             $amount = $modification->getAmount();
             $taxRate = round((($amount / $net) - 1) * 100, 2);
@@ -475,7 +488,7 @@ class WirecardSeamless extends AbstractPayment
     /**
      * @param mixed $response
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      */
@@ -506,7 +519,7 @@ class WirecardSeamless extends AbstractPayment
                 $orderIdent,
                 '',
                 '',
-                IStatus::STATUS_AUTHORIZED,
+                StatusInterface::STATUS_AUTHORIZED,
                 [
                     'seamless_amount' => '',
                     'seamless_paymentType' => 'PREPAYMENT',
@@ -537,8 +550,8 @@ class WirecardSeamless extends AbstractPayment
                 $response['orderNumber'],
                 $response['avsResponseMessage'],
                 $response['orderNumber'] !== null && $response['paymentState'] == 'PENDING'
-                    ? IStatus::STATUS_PENDING
-                    : IStatus::STATUS_CANCELLED,
+                    ? StatusInterface::STATUS_PENDING
+                    : StatusInterface::STATUS_CANCELLED,
                 [
                     'seamless_amount' => '',
                     'seamless_paymentType' => '',
@@ -589,7 +602,7 @@ class WirecardSeamless extends AbstractPayment
         }
 
         // computes the fingerprint from the fingerprint string
-        $fingerprint = $this->calculateFingerprint($fingerprintString, $this->secret);
+        $fingerprint = $this->calculateFingerprint($fingerprintString);
 
         if (!((strcmp($fingerprint, $response['responseFingerprint']) == 0)
             && ($mandatoryFingerPrintFields == 3)
@@ -606,8 +619,8 @@ class WirecardSeamless extends AbstractPayment
             $response['orderNumber'],
             $response['avsResponseMessage'],
             $response['orderNumber'] !== null && $response['paymentState'] == 'SUCCESS'
-                ? IStatus::STATUS_AUTHORIZED
-                : IStatus::STATUS_CANCELLED,
+                ? StatusInterface::STATUS_AUTHORIZED
+                : StatusInterface::STATUS_CANCELLED,
             [
                 'seamless_amount' => (string)$price,
                 'seamless_paymentType' => $response['paymentType'],
@@ -640,14 +653,14 @@ class WirecardSeamless extends AbstractPayment
     /**
      * execute payment
      *
-     * @param IPrice|null $price
+     * @param PriceInterface|null $price
      * @param null $reference
      *
      * @throws \Exception
      *
-     * @return IStatus
+     * @return StatusInterface
      */
-    public function executeDebit(IPrice $price = null, $reference = null)
+    public function executeDebit(PriceInterface $price = null, $reference = null)
     {
         throw new \Exception('not implemented yet');
     }
@@ -655,14 +668,14 @@ class WirecardSeamless extends AbstractPayment
     /**
      * Executes payment
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      *
-     * @return IStatus
+     * @return StatusInterface
      *
      * @throws \Exception
      */
-    public function deposit(IPrice $price = null, $reference = null, $transactionId = null)
+    public function deposit(PriceInterface $price = null, $reference = null, $transactionId = null)
     {
         $fields = [
             'customerId' => $this->customerId,
@@ -690,7 +703,7 @@ class WirecardSeamless extends AbstractPayment
                 $transactionId,
                 $reference,
                 'executeDepit: deposit canceled',
-                IStatus::STATUS_CANCELLED,
+                StatusInterface::STATUS_CANCELLED,
                 $result
             );
         } else {
@@ -698,7 +711,7 @@ class WirecardSeamless extends AbstractPayment
                 $transactionId,
                 $reference,
                 'deposit executed: ' . round($price->getAmount()->asNumeric(), 2) . ' ' . $price->getCurrency()->getShortName(),
-                IStatus::STATUS_CLEARED,
+                StatusInterface::STATUS_CLEARED,
                 []
             );
         }
@@ -707,15 +720,15 @@ class WirecardSeamless extends AbstractPayment
     /**
      * Executes credit
      *
-     * @param IPrice $price
+     * @param PriceInterface $price
      * @param string $reference
      * @param $transactionId
      *
      * @throws \Exception
      *
-     * @return IStatus
+     * @return StatusInterface
      */
-    public function executeCredit(IPrice $price, $reference, $transactionId)
+    public function executeCredit(PriceInterface $price, $reference, $transactionId)
     {
         throw new \Exception('not implemented yet');
     }
@@ -734,7 +747,7 @@ class WirecardSeamless extends AbstractPayment
                 $reference,
                 $transactionId,
                 'approveReversal: payment approval canceled',
-                IStatus::STATUS_CANCELLED,
+                StatusInterface::STATUS_CANCELLED,
                 []
             );
         }
@@ -763,7 +776,7 @@ class WirecardSeamless extends AbstractPayment
                 $reference,
                 $transactionId,
                 'approveReversal: payment approval canceled',
-                IStatus::STATUS_CANCELLED,
+                StatusInterface::STATUS_CANCELLED,
                 []
             );
         } else {
@@ -815,11 +828,11 @@ class WirecardSeamless extends AbstractPayment
      * Environment was kept optional for backwards compatibility, but should be passed if possible
      *
      * @param $response
-     * @param IEnvironment|null $environment
+     * @param EnvironmentInterface|null $environment
      *
-     * @return ICart|null
+     * @return CartInterface|null
      */
-    public static function createCartByOrderIdent($response, IEnvironment $environment = null)
+    public static function createCartByOrderIdent($response, EnvironmentInterface $environment = null)
     {
         $orderIdent = $response['orderIdent'];
         $orderIdent = explode(self::ENCODED_ORDERIDENT_DELIMITER, $orderIdent);
@@ -829,7 +842,7 @@ class WirecardSeamless extends AbstractPayment
 
             $cartId = explode('_', $cartId, 2);
             if (class_exists($cartId[0])) {
-                /** @var ICart $cart */
+                /** @var CartInterface $cart */
                 $cart = new $cartId[0];
                 $cart->setId($cartId[1]);
 

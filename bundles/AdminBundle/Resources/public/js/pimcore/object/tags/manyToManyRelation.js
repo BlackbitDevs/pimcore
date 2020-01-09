@@ -19,11 +19,21 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
     idProperty: "rowId",
     pathProperty: "fullpath",
     allowBatchAppend: true,
+    allowBatchRemove: true,
+    dataObjectFolderAllowed: false,
 
     initialize: function (data, fieldConfig) {
         this.data = [];
 
         this.fieldConfig = fieldConfig;
+
+        this.fieldConfig.classes =  this.fieldConfig.classes.filter(function (x) {
+            if(x.classes == 'folder') {
+                this.dataObjectFolderAllowed = true;
+                return false;
+            }
+            return true;
+        });
 
         if (data) {
             this.data = data;
@@ -177,11 +187,11 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
                 markDirty: false,
                 plugins: {
                     ptype: 'gridviewdragdrop',
-                    dragroup: 'element'
+                    draggroup: 'element'
                 },
                 listeners: {
                     refresh: function (gridview) {
-                        this.requestNicePathData(this.store.data, true);
+                        this.requestNicePathData(this.store.data);
                     }.bind(this)
                 }
             },
@@ -301,8 +311,8 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
         var toolbarItems = [
             {
                 xtype: "tbspacer",
-                width: 20,
-                height: 16,
+                width: 24,
+                height: 24,
                 cls: "pimcore_icon_droptarget"
             },
             {
@@ -393,6 +403,7 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
             style: "margin-bottom: 10px",
             title: this.fieldConfig.title,
             viewConfig: {
+            enableTextSelection: true,
                 listeners: {
                     refresh: function (gridview) {
                         this.requestNicePathData(this.store.data);
@@ -472,13 +483,20 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
 
         if (this.fieldConfig.objectsAllowed) {
             allowedTypes.push("object");
+            allowedSubtypes.object = [];
             if (this.fieldConfig.classes != null && this.fieldConfig.classes.length > 0) {
                 allowedSpecific.classes = [];
-                allowedSubtypes.object = ["object"];
+                allowedSubtypes.object.push("object", "variant");
                 for (i = 0; i < this.fieldConfig.classes.length; i++) {
                     allowedSpecific.classes.push(this.fieldConfig.classes[i].classes);
+
                 }
-            } else {
+            }
+            if(this.dataObjectFolderAllowed) {
+                allowedSubtypes.object.push("folder");
+            }
+
+            if(allowedSubtypes.length == 0) {
                 allowedSubtypes.object = ["object", "folder", "variant"];
             }
         }
@@ -575,18 +593,6 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
         item.parentMenu.destroy();
     },
 
-
-    isInvalidMandatory: function () {
-
-        var data = this.store.queryBy(function (record, id) {
-            return true;
-        });
-        if (data.items.length < 1) {
-            return true;
-        }
-        return false;
-    },
-
     getValue: function () {
 
         var tmData = [];
@@ -619,28 +625,34 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
             return false;
         }
 
-        var type = data.elementType;
+        var elementType = data.elementType;
         var isAllowed = false;
         var subType;
 
-        if (type == "object" && this.fieldConfig.objectsAllowed) {
+        if (elementType == "object" && this.fieldConfig.objectsAllowed) {
 
-            var classname = data.className;
-            isAllowed = false;
-            if (this.fieldConfig.classes != null && this.fieldConfig.classes.length > 0) {
-                for (i = 0; i < this.fieldConfig.classes.length; i++) {
-                    if (this.fieldConfig.classes[i].classes == classname) {
-                        isAllowed = true;
-                        break;
-                    }
+            if(data.type == 'folder') {
+                if(this.dataObjectFolderAllowed || this.fieldConfig.classes.length <= 0) {
+                    isAllowed = true;
                 }
             } else {
-                //no classes configured - allow all
-                isAllowed = true;
+                var classname = data.className;
+
+                isAllowed = false;
+                if (this.fieldConfig.classes != null && this.fieldConfig.classes.length > 0) {
+                    for (i = 0; i < this.fieldConfig.classes.length; i++) {
+                        if (this.fieldConfig.classes[i].classes == classname) {
+                            isAllowed = true;
+                            break;
+                        }
+                    }
+                } else {
+                    if(!this.dataObjectFolderAllowed) {
+                        isAllowed = true;
+                    }
+                }
             }
-
-
-        } else if (type == "asset" && this.fieldConfig.assetsAllowed) {
+        } else if (elementType == "asset" && this.fieldConfig.assetsAllowed) {
             subType = data.type;
             isAllowed = false;
             if (this.fieldConfig.assetTypes != null && this.fieldConfig.assetTypes.length > 0) {
@@ -655,7 +667,7 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
                 isAllowed = true;
             }
 
-        } else if (type == "document" && this.fieldConfig.documentsAllowed) {
+        } else if (elementType == "document" && this.fieldConfig.documentsAllowed) {
             subType = data.type;
             isAllowed = false;
             if (this.fieldConfig.documentTypes != null && this.fieldConfig.documentTypes.length > 0) {
@@ -682,16 +694,13 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
         return this.dataChanged;
     },
 
-    requestNicePathData: function(targets, isInitialLoad) {
+    requestNicePathData: function(targets) {
         if (!this.object) {
             return;
         }
 
         var context = this.getContext();
-        var loadEditModeData = false;
-        if(isInitialLoad && context['containerType'] == 'object') {
-            loadEditModeData = true;
-        }
+
         pimcore.helpers.requestNicePathData(
             {
                 type: "object",
@@ -700,7 +709,7 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
             targets,
             {
                 idProperty: this.idProperty,
-                loadEditModeData: loadEditModeData
+                pathProperty: this.pathProperty
             },
             this.fieldConfig,
             context,
@@ -708,8 +717,6 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
             pimcore.helpers.getNicePathHandlerStore.bind(this, this.store, {
                 idProperty: this.idProperty,
                 pathProperty: this.pathProperty,
-                loadEditModeData: loadEditModeData,
-                fields: this.fieldConfig.columnKeys
             }, this.component.getView())
         );
     },
@@ -720,5 +727,5 @@ pimcore.object.tags.manyToManyRelation = Class.create(pimcore.object.tags.abstra
 
 });
 
-// @TODO BC layer, to be removed in v6.0
+// @TODO BC layer, to be removed in v7.0
 pimcore.object.tags.multihref = pimcore.object.tags.manyToManyRelation;

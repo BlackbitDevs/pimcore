@@ -24,7 +24,7 @@ use Pimcore\Model\AbstractModel;
  *
  * @method \Pimcore\Db\ZendCompatibility\QueryBuilder getQuery()
  */
-abstract class AbstractListing extends AbstractModel
+abstract class AbstractListing extends AbstractModel implements \Iterator
 {
     /**
      * @var string|array
@@ -32,7 +32,7 @@ abstract class AbstractListing extends AbstractModel
     protected $order;
 
     /**
-     * @var string|array
+     * @var array
      */
     protected $orderKey;
 
@@ -78,6 +78,36 @@ abstract class AbstractListing extends AbstractModel
      * @var array
      */
     protected $conditionParams = [];
+
+    /**
+     * @var array
+     */
+    protected $conditionVariableTypes = [];
+
+    /**
+     * @var array|null
+     */
+    protected $data;
+
+    /**
+     * @return array
+     */
+    public function getConditionVariableTypes(): array
+    {
+        if (!$this->conditionVariables) {
+            $this->getCondition();
+        }
+
+        return $this->conditionVariableTypes;
+    }
+
+    /**
+     * @param array $conditionVariableTypes
+     */
+    public function setConditionVariableTypes(array $conditionVariableTypes): void
+    {
+        $this->conditionVariableTypes = $conditionVariableTypes;
+    }
 
     /**
      * @param  $key
@@ -169,7 +199,7 @@ abstract class AbstractListing extends AbstractModel
     }
 
     /**
-     * @return array|string
+     * @return array
      */
     public function getOrderKey()
     {
@@ -250,6 +280,7 @@ abstract class AbstractListing extends AbstractModel
     public function getCondition()
     {
         $conditionString = '';
+        $conditionVariableTypes = [];
         $conditionParams = $this->getConditionParams();
         $db = \Pimcore\Db::get();
 
@@ -279,6 +310,20 @@ abstract class AbstractListing extends AbstractModel
         $params = array_merge((array) $this->getConditionVariablesFromSetCondition(), $params);
 
         $this->setConditionVariables($params);
+
+        foreach ($params as $pkey => $param) {
+            if (is_array($param)) {
+                if (isset($param[0]) && is_string($param[0])) {
+                    $conditionVariableTypes[$pkey] = \Doctrine\DBAL\Connection::PARAM_STR_ARRAY;
+                } else {
+                    $conditionVariableTypes[$pkey] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
+                }
+            } else {
+                $conditionVariableTypes[$pkey] = \PDO::PARAM_STR;
+            }
+        }
+
+        $this->setConditionVariableTypes($conditionVariableTypes);
 
         $condition = $this->condition . $conditionString;
 
@@ -404,5 +449,79 @@ abstract class AbstractListing extends AbstractModel
     public function getConditionVariablesFromSetCondition()
     {
         return $this->conditionVariablesFromSetCondition;
+    }
+
+    /**
+     * @return array
+     */
+    public function getData()
+    {
+        if ($this->data === null) {
+            $dao = $this->getDao();
+            if(\method_exists($dao, 'load')) {
+                $this->getDao()->load();
+            } else {
+                @trigger_error(
+                    'Please provide load() method in '.\get_class($dao).'. This method will be required in Pimcore 7.',
+                    \E_USER_DEPRECATED
+                );
+            }
+        }
+
+        return $this->data;
+    }
+
+    /**
+     * @param array|null $data
+     *
+     * @return static
+     */
+    public function setData(?array $data): self
+    {
+        $this->data = $data;
+
+        return $this;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function current()
+    {
+        $this->getData();
+        return current($this->data);
+    }
+
+    /**
+     * @return mixed
+     */
+    public function key()
+    {
+        $this->getData();
+        return key($this->data);
+    }
+
+    /**
+     * @return mixed|null
+     */
+    public function next()
+    {
+        $this->getData();
+        return next($this->data);
+    }
+
+    /**
+     * @return bool
+     */
+    public function valid()
+    {
+        $this->getData();
+        return $this->current() !== false;
+    }
+
+    public function rewind()
+    {
+        $this->getData();
+        reset($this->data);
     }
 }

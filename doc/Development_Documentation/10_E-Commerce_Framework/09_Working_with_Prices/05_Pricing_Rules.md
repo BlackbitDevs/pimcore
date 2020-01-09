@@ -22,11 +22,11 @@ following scripts can be used.
 				<?php foreach($rule->getActions() as $action) { ?>
 					<?php if($action instanceof \Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Action\ProductDiscount) { ?>
 						<?php if($action->getAmount() > 0) { ?>
-							<li><?= $rule->getLabel() ?> <?= $this->translate("shop.detail.your_benefit.discount.amount", new Zend_Currency(array("value" => $action->getAmount()))) ?></li>
+							<li><?= $rule->getLabel() ?> <?= $this->translate("shop.detail.your_benefit.discount.amount", $action->getAmount()) ?></li>
 						<?php } else if($action->getPercent() > 0) { ?>
 							<li><?= $rule->getLabel() ?> <?= $this->translate("shop.detail.your_benefit.discount.percent", $action->getPercent()) ?></li>
 						<?php } ?>
-					<?php } else if($action instanceof \Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Action\IGift) { ?>
+					<?php } else if($action instanceof \Pimcore\Bundle\EcommerceFrameworkBundle\PricingManager\Action\GiftInterface) { ?>
 							<li>
 								<?= $this->translate("shop.detail.your_benefit.discount.gift", '<a href="' . $action->getProduct()->getShopDetailLink($this, true) . '"> ' . $action->getProduct()->getName() . '</a>') ?>
 							</li>
