@@ -96,6 +96,179 @@ pimcore.object.tags.abstractRelations = Class.create(pimcore.object.tags.abstrac
         this.store.filter(searchFilter);
     },
 
+    /*
+    getGridColumnFilter: function (field) {
+        if(typeof Ext.grid.filters.filter.QuantityValue === 'undefined') {
+            Ext.define('Ext.grid.filters.filter.QuantityValue', {
+                extend: 'Ext.grid.filters.filter.Number',
+                alias: 'grid.filter.quantityValue',
+                type: 'quantityValue',
+                constructor: function(config) {
+                    var me = this;
+                    me.callParent([
+                        config
+                    ]);
+
+                    this.store = config.store;
+                },
+                createMenu: function () {
+                    var me = this;
+                    me.callParent();
+
+                    var cfg = {
+                        xtype: 'combo',
+                        name: 'unit',
+                        labelClsExtra: Ext.baseCSSPrefix + 'grid-filters-icon pimcore_nav_icon_quantityValue',
+                        queryMode: 'local',
+                        editable: false,
+                        forceSelection: true,
+                        hideEmptyLabel: false,
+                        store: this.store,
+                        valueField: 'id',
+                        displayField: 'abbreviation',
+                        margin: 0,
+                        listeners: {
+                            change: function (field) {
+                                var me = this;
+
+                                me.onValueChange(field, {
+                                    RETURN: 1, getKey: function () {
+                                        return null;
+                                    }
+                                });
+                            }.bind(this)
+                        }
+                    };
+                    if (me.getItemDefaults()) {
+                        cfg = Ext.merge({}, me.getItemDefaults(), cfg);
+                    }
+
+                    me.menu.insert(0, '-');
+                    me.fields.unit = me.menu.insert(0, cfg);
+                },
+                setValue: function (value) {
+                    var me = this;
+                    var unitId = me.fields.unit.getValue();
+
+                    if (unitId) {
+                        for (var i in value) {
+                            value[i] = [[value[i], unitId]];
+                        }
+                    }
+
+                    me.callParent([value]);
+                },
+                showMenu: function (menuItem) {
+                    this.callParent([menuItem]);
+
+                    for (var i in this.filter) {
+                        if (this.filter[i].getValue() !== null) {
+                            this.fields[i].setValue(this.filter[i].getValue()[0][0]);
+                        }
+                    }
+                }
+            });
+        }
+
+        var store = new Ext.data.JsonStore({
+            autoDestroy: true,
+            root: 'data',
+            fields: ['id', 'abbreviation']
+        });
+        pimcore.helpers.quantityValue.initUnitStore(function(data) {
+            store.loadData(data.data);
+        }, field.layout.validUnits);
+
+        return {
+            type: 'quantityValue',
+            dataIndex: field.key,
+            store: store
+        };
+    },*/
+
+    getGridColumnFilter: function(field) {
+        if(typeof Ext.grid.filters.filter.Relation === 'undefined') {
+            Ext.define('Ext.grid.filters.filter.Relation', {
+                extend: 'Ext.grid.filters.filter.List',
+                alias: 'grid.filter.relation',
+                type: 'relation',
+                createMenu: function() {
+                    var me = this,
+                        config;
+                    me.callParent();
+                    config = Ext.apply({}, me.getItemDefaults());
+                    if (config.iconCls && !('labelClsExtra' in config)) {
+                        config.labelClsExtra = Ext.baseCSSPrefix + 'grid-filters-icon ' + config.iconCls;
+                    }
+                    delete config.iconCls;
+                    config.emptyText = config.emptyText || me.emptyText;
+                    me.inputItem = me.menu.insert(0, config);
+                    me.inputItem.on({
+                        scope: me,
+                        keyup: me.onSearchChange,
+                        el: {
+                            click: function(e) {
+                                e.stopPropagation();
+                            }
+                        }
+                    });
+                },
+                onSearchChange: function(field, e) {
+                    var value = me.getValue(field);
+
+                    Ext.Ajax.request({
+                        url: "/admin/object/relation-options",
+                        method: 'get',
+                        params: {search: value},
+                        success: function (response) {
+                            response = Ext.decode(response.responseText);
+
+                            var me = this,
+                                menu = me.menu,
+                                len = response.length,
+                                listeners, itemDefaults, record, gid, idValue, idField, labelValue, labelField, i, item, processed;
+                            // B/c we're listening to datachanged event, we need to make sure there's a menu.
+                            if (len && menu) {
+                                listeners = {
+                                    checkchange: function(field, checked) {
+                                        var value = field.getValue();
+                                        me.filter.setValue(value);
+                                    },
+                                    scope: me
+                                };
+                                menu.suspendLayouts();
+                                menu.removeAll(true);
+                                gid = me.single ? Ext.id() : null;
+                                processed = [];
+                                for (i = 0; i < len; i++) {
+                                    record = response[i];
+                                    idValue = record.id;
+                                    labelValue = record.label;
+
+                                    processed.push(labelValue);
+                                    // Note that the menu items will be set checked in filter#activate() if the value of the menu
+                                    // item is in the cfg.value array.
+                                    item = menu.add(Ext.apply({
+                                        text: labelValue,
+                                        group: gid,
+                                        value: idValue,
+                                        listeners: listeners
+                                    }));
+                                }
+                                menu.resumeLayouts(true);
+                            }
+                        }.bind(this)
+                    });
+                }
+            });
+        }
+
+        return {
+            type: 'relation',
+            dataIndex: field.key
+        };
+    },
+
     batchPrepare: function(columnDataIndex, grid, onlySelected, append, remove){
         var columnIndex = columnDataIndex.fullColumnIndex;
         var editor = grid.getColumns()[columnIndex].getEditor();
