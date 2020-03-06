@@ -786,4 +786,12 @@ abstract class Tag extends Model\AbstractModel implements Model\Document\Tag\Tag
 
         return $data;
     }
+
+    /**
+     * @return bool
+     */
+    public function isEmpty(): bool
+    {
+        return empty($this->getData());
+    }
 }
