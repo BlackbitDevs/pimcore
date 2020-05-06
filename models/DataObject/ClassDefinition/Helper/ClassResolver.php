@@ -19,7 +19,11 @@ class ClassResolver
                     $serviceName = substr($class, 1);
                     $service = \Pimcore::getKernel()->getContainer()->get($serviceName);
                 } else {
-                    $service = new $class;
+                    try {
+                        $service = new $class;
+                    } catch(\Throwable $e) {
+                        $service = null;
+                    }
                 }
 
                 self::$cache[$class] = self::returnValidServiceOrNull($service, $validationCallback);
