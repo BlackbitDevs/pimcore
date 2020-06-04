@@ -53,7 +53,7 @@ class Page extends TargetingDocument
     protected $type = 'page';
 
     /**
-     * @var string
+     * @var string|null
      */
     protected $prettyUrl;
 
@@ -150,11 +150,7 @@ class Page extends TargetingDocument
     }
 
     /**
-     * Returns the full path of the document including the key (path+key)
-     *
-     * @param bool $force
-     *
-     * @return string
+     * @inheritDoc
      */
     public function getFullPath(bool $force = false)
     {
@@ -188,7 +184,7 @@ class Page extends TargetingDocument
     }
 
     /**
-     * @return string
+     * @return string|null
      */
     public function getPrettyUrl()
     {

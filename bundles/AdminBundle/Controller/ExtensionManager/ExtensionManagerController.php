@@ -23,7 +23,6 @@ use Pimcore\Extension\Bundle\Exception\BundleNotFoundException;
 use Pimcore\Extension\Bundle\PimcoreBundleInterface;
 use Pimcore\Extension\Bundle\PimcoreBundleManager;
 use Pimcore\Extension\Document\Areabrick\AreabrickInterface;
-use Pimcore\Extension\Document\Areabrick\AreabrickManager;
 use Pimcore\Extension\Document\Areabrick\AreabrickManagerInterface;
 use Pimcore\Routing\RouteReferenceInterface;
 use Pimcore\Tool\AssetsInstaller;
@@ -44,7 +43,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     private $bundleManager;
 
     /**
-     * @var AreabrickManager
+     * @var AreabrickManagerInterface
      */
     private $areabrickManager;
 
@@ -73,7 +72,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     }
 
     /**
-     * @Route("/admin/extensions", methods={"GET"})
+     * @Route("/admin/extensions", name="pimcore_admin_extensionmanager_extensionmanager_getextensions", methods={"GET"})
      *
      * @return JsonResponse
      */
@@ -90,7 +89,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     /**
      * Updates bundle options (priority, environments)
      *
-     * @Route("/admin/extensions", methods={"PUT"})
+     * @Route("/admin/extensions", name="pimcore_admin_extensionmanager_extensionmanager_updateextensions", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -137,7 +136,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     }
 
     /**
-     * @Route("/admin/toggle-extension-state", methods={"PUT"})
+     * @Route("/admin/toggle-extension-state", name="pimcore_admin_extensionmanager_extensionmanager_toggleextensionstate", methods={"PUT"})
      *
      * @param Request $request
      * @param KernelInterface $kernel
@@ -226,7 +225,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     }
 
     /**
-     * @Route("/admin/install", methods={"POST"})
+     * @Route("/admin/install", name="pimcore_admin_extensionmanager_extensionmanager_install", methods={"POST"})
      *
      * @param Request $request
      *
@@ -238,7 +237,7 @@ class ExtensionManagerController extends AdminController implements EventedContr
     }
 
     /**
-     * @Route("/admin/uninstall", methods={"POST"})
+     * @Route("/admin/uninstall", name="pimcore_admin_extensionmanager_extensionmanager_uninstall", methods={"POST"})
      *
      * @param Request $request
      *

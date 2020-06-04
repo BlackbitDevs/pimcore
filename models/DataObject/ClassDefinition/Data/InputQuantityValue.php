@@ -81,7 +81,7 @@ class InputQuantityValue extends QuantityValue
     }
 
     /**
-     * @param float $data
+     * @param array $data
      * @param Model\DataObject\Concrete|null $object
      * @param array $params
      *
@@ -195,9 +195,9 @@ class InputQuantityValue extends QuantityValue
      */
     public function unmarshal($value, $object = null, $params = [])
     {
-        if ($params['blockmode'] && is_array($value)) {
+        if (($params['blockmode'] ?? false) && is_array($value)) {
             return $this->getNewDataObject($value['value'], $value['value2']);
-        } elseif ($params['simple']) {
+        } elseif ($params['simple'] ?? false) {
             return $value;
         } elseif (is_array($value)) {
             return [

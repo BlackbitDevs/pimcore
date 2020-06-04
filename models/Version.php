@@ -24,10 +24,10 @@ use Pimcore\File;
 use Pimcore\Logger;
 use Pimcore\Model\DataObject\ClassDefinition\Data;
 use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Element\ElementDescriptor;
 use Pimcore\Model\Element\ElementDumpStateInterface;
 use Pimcore\Model\Element\ElementInterface;
 use Pimcore\Model\Element\Service;
-use Pimcore\Model\Version\ElementDescriptor;
 use Pimcore\Model\Version\MarshalMatcher;
 use Pimcore\Model\Version\PimcoreClassDefinitionMatcher;
 use Pimcore\Model\Version\PimcoreClassDefinitionReplaceFilter;
@@ -299,6 +299,7 @@ class Version extends AbstractModel
         $copier->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Pimcore\Templating\Model\ViewModelInterface'));
         $copier->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Psr\Container\ContainerInterface'));
         $copier->addFilter(new SetDumpStateFilter(true), new \DeepCopy\Matcher\PropertyMatcher(ElementDumpStateInterface::class, ElementDumpStateInterface::DUMP_STATE_PROPERTY_NAME));
+        $copier->addFilter(new \DeepCopy\Filter\SetNullFilter(), new \DeepCopy\Matcher\PropertyTypeMatcher('Pimcore\Model\DataObject\ClassDefinition'));
         $newData = $copier->copy($data);
 
         return $newData;

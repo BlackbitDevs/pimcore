@@ -12,7 +12,7 @@ parameters:
 
     excludes_analyse:
         - '**/DependencyInjection/Configuration.php'
-        - '**/migrations/Version*.php'
+        - '**/Migrations/Version*.php'
         - '**/External/AdminerController.php'
         - '**/Generator/DoctrineCrudGenerator.php'
         - '**/EcommerceFrameworkBundle/Resources/views/Voucher/parts/paginator.html.php'
@@ -63,6 +63,6 @@ parameters:
         - '~^Method Psr\\Cache\\CacheItemPoolInterface::clear\(\) invoked with 1 parameter, 0 required\.\z~'
         - '~^Method Symfony\\Component\\Cache\\Adapter\\AdapterInterface::clear\(\) invoked with 1 parameter, 0 required\.\z~'
 
-    # see https://github.com/phpstan/phpstan#universal-object-crates
+    # see https://phpstan.org/config-reference#universal-object-crates
     universalObjectCratesClasses:
         -  Pimcore\Templating\Model\ViewModel

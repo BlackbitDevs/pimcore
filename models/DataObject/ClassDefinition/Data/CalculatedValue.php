@@ -35,9 +35,9 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
     public $elementType = 'input';
 
     /**
-     * @var float
+     * @var int
      */
-    public $width;
+    public $width = 0;
 
     /**
      * @var string
@@ -158,7 +158,7 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
     /**
      * @see Data::getDataForEditmode
      *
-     * @param Model\DataObject\Data\CalculatedValue $data
+     * @param Model\DataObject\Data\CalculatedValue|null $data
      * @param DataObject\Concrete $object
      * @param array $params
      *
@@ -180,7 +180,7 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
      * @param null|DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return float
+     * @return null
      */
     public function getDataFromEditmode($data, $object = null, $params = [])
     {
@@ -194,11 +194,11 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
      * @param DataObject\Concrete|null $object
      * @param mixed $params
      *
-     * @return float
+     * @return string
      */
     public function getVersionPreview($data, $object = null, $params = [])
     {
-        return $data;
+        return (string)$this->getDataForEditmode($data, $object, $params);
     }
 
     /**
@@ -478,7 +478,7 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
         $code .= '/**' . "\n";
         $code .= '* Set ' . str_replace(['/**', '*/', '//'], '', $this->getName()) . ' - ' . str_replace(['/**', '*/', '//'], '', $this->getTitle()) . "\n";
         $code .= '* @param ' . $this->getPhpdocType() . ' $' . $key . "\n";
-        $code .= '* @return \\Pimcore\\Model\\DataObject\\' . ucfirst($brickClass->getKey()) . "\n";
+        $code .= '* @return \\Pimcore\\Model\\DataObject\\Objectbrick\\Data\\' . ucfirst($brickClass->getKey()) . "\n";
         $code .= '*/' . "\n";
         $code .= 'public function set' . ucfirst($key) . ' (' . '$' . $key . ") {\n";
 
@@ -503,7 +503,7 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
         $code .= '/**' . "\n";
         $code .= '* Get ' . str_replace(['/**', '*/', '//'], '', $this->getName()) . ' - ' . str_replace(['/**', '*/', '//'], '', $this->getTitle()) . "\n";
         $code .= '* @param ' . $this->getPhpdocType() . ' $' . $key . "\n";
-        $code .= '* @return \\Pimcore\\Model\\DataObject\\' . ucfirst($fieldcollectionDefinition->getKey()) . "\n";
+        $code .= '* @return \\Pimcore\\Model\\DataObject\\Fieldcollection\\Data\\' . ucfirst($fieldcollectionDefinition->getKey()) . "\n";
         $code .= '*/' . "\n";
         $code .= 'public function set' . ucfirst($key) . ' (' . '$' . $key . ") {\n";
 
@@ -526,7 +526,7 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
         if ($class instanceof DataObject\Objectbrick\Definition) {
             $classname = 'Objectbrick\\Data\\' . ucfirst($class->getKey());
         } elseif ($class instanceof DataObject\Fieldcollection\Definition) {
-            $classname = 'FieldCollection\\Data\\' . ucfirst($class->getKey());
+            $classname = 'Fieldcollection\\Data\\' . ucfirst($class->getKey());
         } else {
             $classname = $class->getName();
         }

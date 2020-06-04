@@ -38,14 +38,14 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
     /**
      * Type for the column to query
      *
-     * @var string
+     * @var array
      */
     public $queryColumnType = ['images' => 'text', 'hotspots' => 'text'];
 
     /**
      * Type for the column
      *
-     * @var string
+     * @var array
      */
     public $columnType = ['images' => 'text', 'hotspots' => 'text'];
 
@@ -388,7 +388,7 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
      *
      * @abstract
      *
-     * @param DataObject\AbstractObject $object
+     * @param DataObject\Concrete $object
      * @param array $params
      *
      * @return string
@@ -398,9 +398,9 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
         $data = $this->getDataFromObjectParam($object, $params);
         if ($data instanceof DataObject\Data\ImageGallery) {
             return base64_encode(Serialize::serialize($data));
-        } else {
-            return null;
         }
+
+        return '';
     }
 
     /**
@@ -480,8 +480,8 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
      *
      * @deprecated
      *
-     * @param string $object
-     * @param mixed $params
+     * @param DataObject\Concrete $object
+     * @param array $params
      *
      * @return array
      */
@@ -587,7 +587,7 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
     public function marshal($value, $object = null, $params = [])
     {
         if ($value) {
-            if ($params['blockmode'] && $value instanceof Model\DataObject\Data\ImageGallery) {
+            if (($params['blockmode'] ?? false) && $value instanceof Model\DataObject\Data\ImageGallery) {
                 $list = [];
                 $items = $value->getItems();
                 $def = new Hotspotimage();
@@ -620,7 +620,7 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
      */
     public function unmarshal($value, $object = null, $params = [])
     {
-        if ($params['blockmode'] && is_array($value)) {
+        if (($params['blockmode'] ?? false) && is_array($value)) {
             $items = [];
             $def = new Hotspotimage();
             foreach ($value as $rawValue) {
@@ -639,10 +639,12 @@ class ImageGallery extends Data implements ResourcePersistenceAwareInterface, Qu
 
             return $result;
         }
+
+        return null;
     }
 
     /**
-     * @param DataObject\Concrete $data
+     * @param DataObject\Data\ImageGallery|null $data
      *
      * @return bool
      */

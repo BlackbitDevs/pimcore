@@ -92,7 +92,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
     public $childs = [];
 
     /**
-     * @var string
+     * @var array|null
      */
     public $layout;
 
@@ -104,7 +104,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
     protected $referencedFields = [];
 
     /**
-     * @var array
+     * @var array|null
      */
     public $fieldDefinitionsCache;
 
@@ -221,6 +221,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
                         }
                     }
                     $blockElement = new DataObject\Data\BlockElement($blockElementRaw['name'], $blockElementRaw['type'], $blockElementRaw['data']);
+                    $blockElement->setNeedsRenewReferences(true);
 
                     if (isset($params['owner'])) {
                         $blockElement->setOwner($params['owner'], $params['fieldname'], $params['language']);
@@ -436,14 +437,14 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
      *
      * @abstract
      *
-     * @param DataObject\AbstractObject $object
+     * @param DataObject\Concrete $object
      * @param array $params
      *
      * @return string
      */
     public function getForCsvExport($object, $params = [])
     {
-        return null;
+        return '';
     }
 
     /**
@@ -451,7 +452,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
      * @param null|DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return string
+     * @return null
      */
     public function getFromCsvImport($importValue, $object = null, $params = [])
     {
@@ -463,10 +464,10 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
      *
      * @deprecated
      *
-     * @param string $object
+     * @param DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return mixed
+     * @return array
      */
     public function getForWebserviceExport($object, $params = [])
     {
@@ -508,7 +509,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
      * @param mixed $params
      * @param Model\Webservice\IdMapperInterface|null $idMapper
      *
-     * @return mixed|void
+     * @return array
      *
      * @throws \Exception
      */
@@ -582,17 +583,13 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
     }
 
     /**
-     * @param DataObject\Data\ExternalImage $data
+     * @param DataObject\Data\BlockElement[][]|null $data
      *
      * @return bool
      */
     public function isEmpty($data)
     {
-        if (is_null($data) || count($data) == 0) {
-            return true;
-        }
-
-        return false;
+        return is_null($data) || count($data) === 0;
     }
 
     /**
@@ -638,7 +635,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
     }
 
     /**
-     * @param array $layout
+     * @param array|null $layout
      *
      * @return $this
      */
@@ -650,7 +647,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
     }
 
     /**
-     * @return array
+     * @return array|null
      */
     public function getLayout()
     {

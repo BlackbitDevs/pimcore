@@ -44,14 +44,14 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
      *
      * @var string
      */
-    public $queryColumnType = 'varchar(190)';
+    public $queryColumnType = 'varchar(255)';
 
     /**
      * Type for the column
      *
      * @var string
      */
-    public $columnType = 'varchar(190)';
+    public $columnType = 'varchar(255)';
 
     /**
      * Type for the generated phpdoc
@@ -150,7 +150,7 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
      *
-     * @return string
+     * @return string|null
      */
     public function getDataForResource($data, $object = null, $params = [])
     {
@@ -158,18 +158,28 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
             return null;
         }
 
-        if ($this->algorithm === static::HASH_FUNCTION_PASSWORD_HASH) {
-            $info = password_get_info($data);
+        // is already a hashed string? Then do not re-hash
+        $info = password_get_info($data);
+        if ($info['algo'] !== null && $info['algo'] !== 0) {
+            return $data;
+        }
 
-            // is already a hashed string
-            if ($info['algo'] !== null && $info['algo'] !== 0) {
-                return $data;
-            }
-        } else {
-            // is already a hashed string
-            if (strlen($data) >= 32) {
-                return $data;
-            }
+        // password_get_info() will not detect older, less secure, hashing algos.
+        // It might not detect some less common ones as well.
+        $maybeHash = preg_match('/^[a-f0-9]{32,}$/i', $data);
+        $hashLenghts = [
+            32,  // MD2, MD4, MD5, RIPEMD-128, Snefru 128, Tiger/128, HAVAL128
+            40,  // SHA-1, HAS-160, RIPEMD-160, Tiger/160, HAVAL160
+            48,  // Tiger/192, HAVAL192
+            56,  // SHA-224, HAVAL224
+            64,  // SHA-256, BLAKE-256, GOST, GOST CryptoPro, HAVAL256, RIPEMD-256, Snefru 256
+            96,  // SHA-384
+            128, // SHA-512, BLAKE-512, SWIFFT
+        ];
+
+        if ($maybeHash && in_array(strlen($data), $hashLenghts, true)) {
+            // Probably already a hashed string
+            return $data;
         }
 
         $hashed = $this->calculateHash($data);
@@ -226,12 +236,12 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
      * In this case, the hash will be re-calculated with the new parameters and saved back to the object.
      *
      * @param string $password
-     * @param DataObject\AbstractObject $object
+     * @param DataObject\Concrete $object
      * @param bool|true $updateHash
      *
      * @return bool
      */
-    public function verifyPassword($password, DataObject\AbstractObject $object, $updateHash = true)
+    public function verifyPassword($password, DataObject\Concrete $object, $updateHash = true)
     {
         $getter = 'get' . ucfirst($this->getName());
         $setter = 'set' . ucfirst($this->getName());
@@ -352,7 +362,7 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
      * @param null|DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return DataObject\ClassDefinition\Data
+     * @return string
      */
     public function getFromCsvImport($importValue, $object = null, $params = [])
     {
@@ -375,10 +385,10 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
      *
      * @deprecated
      *
-     * @param string $object
-     * @param mixed $params
+     * @param DataObject\Concrete $object
+     * @param array $params
      *
-     * @return mixed
+     * @return null
      */
     public function getForWebserviceExport($object, $params = [])
     {
@@ -388,7 +398,7 @@ class Password extends Data implements ResourcePersistenceAwareInterface, QueryR
 
     /** True if change is allowed in edit mode.
      * @param DataObject\Concrete $object
-     * @param mixed $params
+     * @param array $params
      *
      * @return bool
      */

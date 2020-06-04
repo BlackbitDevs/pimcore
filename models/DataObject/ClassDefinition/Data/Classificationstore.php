@@ -112,7 +112,7 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
     protected $referencedFields = [];
 
     /**
-     * @var array
+     * @var array|null
      */
     public $fieldDefinitionsCache;
 
@@ -127,13 +127,18 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
     public $activeGroupDefinitions = [];
 
     /**
+     * @var int
+     */
+    public $maxItems;
+
+    /**
      * @see Data::getDataForEditmode
      *
      * @param string $data
      * @param null|Model\DataObject\AbstractObject $object
      * @param mixed $params
      *
-     * @return string
+     * @return array
      */
     public function getDataForEditmode($data, $object = null, $params = [])
     {
@@ -207,7 +212,7 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
 
         $items = $data->getItems();
 
-        foreach ($items  as $groupId => $keys) {
+        foreach ($items as $groupId => $keys) {
             if (!isset($data->getActiveGroups()[$groupId])) {
                 continue;
             }
@@ -260,7 +265,7 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
                             $keyId = $key->getKeyId();
                             $fd = DataObject\Classificationstore\Service::getFieldDefinitionFromKeyConfig($key);
 
-                            if ($fd->isEmpty($fieldData[$language][$groupId][$keyId])) {
+                            if ($fd->isEmpty($fieldData[$language][$groupId][$keyId] ?? null)) {
                                 $foundEmptyValue = true;
                                 $inherited = true;
                                 $metaData[$language][$groupId][$keyId] = ['inherited' => true, 'objectid' => $parent->getId()];
@@ -290,11 +295,11 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
     /**
      * @see Data::getDataFromEditmode
      *
-     * @param string $containerData
+     * @param array $containerData
      * @param null|DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return string
+     * @return DataObject\Classificationstore
      */
     public function getDataFromEditmode($containerData, $object = null, $params = [])
     {
@@ -357,7 +362,7 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
      * @param DataObject\Concrete $object
      * @param mixed $params
      *
-     * @return \stdClass
+     * @return string
      */
     public function getDataForGrid($data, $object = null, $params = [])
     {
@@ -432,6 +437,9 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
 
                     foreach ($values as $language => $value) {
                         $value = $fieldDefinition->getDataForResource($value, $object, $params);
+                        if (is_array($value)) {
+                            $value = implode(',', $value);
+                        }
                         $dataString .= $value . ' ';
                     }
                 }
@@ -966,6 +974,12 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
         $getInheritedValues = DataObject\AbstractObject::doGetInheritedValues();
 
         if (!$omitMandatoryCheck) {
+            if ($this->maxItems > 0 && count($activeGroups) > $this->maxItems) {
+                throw new Model\Element\ValidationException(
+                    'Groups in field [' . $this->getName() . '] is bigger than ' . $this->getMaxItems()
+                );
+            }
+
             foreach ($activeGroups as $activeGroupId => $enabled) {
                 if ($enabled) {
                     $groupDefinition = DataObject\Classificationstore\GroupConfig::getById($activeGroupId);
@@ -1100,6 +1114,22 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
     }
 
     /**
+     * @param int $maxItems
+     */
+    public function setMaxItems($maxItems)
+    {
+        $this->maxItems = (int) $maxItems;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxItems()
+    {
+        return $this->maxItems;
+    }
+
+    /**
      * @return bool
      */
     public function isLocalized()
@@ -1126,7 +1156,7 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
     public function recursiveGetActiveGroupCollectionMapping($object, $mergedMapping = [])
     {
         if (!$object) {
-            return;
+            return null;
         }
 
         $getter = 'get' . ucfirst($this->getName());
@@ -1159,14 +1189,14 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
      * @param DataObject\Concrete $object
      * @param array $activeGroups
      *
-     * @return array|bool
+     * @return array|null
      *
      * @todo: Method returns void/null, should be boolean or null
      */
     public function recursiveGetActiveGroupsIds($object, $activeGroups = [])
     {
         if (!$object) {
-            return;
+            return null;
         }
 
         $getter = 'get' . ucfirst($this->getName());
@@ -1239,6 +1269,8 @@ class Classificationstore extends Data implements CustomResourcePersistingInterf
                     continue;
                 }
                 $definition = \Pimcore\Model\DataObject\Classificationstore\Service::getFieldDefinitionFromKeyConfig($keyGroupRelation);
+
+                // changes here also have an effect here: "bundles/AdminBundle/Resources/public/js/pimcore/object/tags/classificationstore.js"
                 $fallbackTooltip = $definition->getName() . ' - ' . $keyGroupRelation->getDescription();
                 $definition->setTooltip($definition->getTooltip() ?: $fallbackTooltip);
 

@@ -32,9 +32,13 @@ use Pimcore\Model;
 use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\AbstractObject;
+use Pimcore\Model\DataObject\ClassDefinition\Data;
+use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\Dependency;
 use Pimcore\Model\Document;
 use Pimcore\Model\Tool\TmpStore;
+use Pimcore\Model\Version\PimcoreClassDefinitionMatcher;
+use Pimcore\Model\Version\PimcoreClassDefinitionReplaceFilter;
 use Pimcore\Tool;
 use Pimcore\Tool\Serialize;
 use Pimcore\Tool\Session;
@@ -112,6 +116,40 @@ class Service extends Model\AbstractModel
                 }
             }
             $path .= '/' . $type;
+        }
+
+        return $path;
+    }
+
+    /**
+     * @static
+     *
+     * @internal
+     *
+     * @param DataObject|Document $element
+     *
+     * @return string
+     *
+     * @throws \Exception
+     */
+    public static function getSortIndexPath($element)
+    {
+        $path = '';
+        $parentElement = null;
+
+        if ($element instanceof ElementInterface) {
+            $elementType = self::getElementType($element);
+            $parentId = $element->getParentId();
+            $parentElement = self::getElementById($elementType, $parentId);
+        }
+
+        if ($parentElement) {
+            $path = self::getSortIndexPath($parentElement);
+        }
+
+        if ($element) {
+            $sortIndex = $element->getIndex() ? $element->getIndex() : 0;
+            $path .= '/' . $sortIndex;
         }
 
         return $path;
@@ -214,7 +252,7 @@ class Service extends Model\AbstractModel
     /**
      * @param array $config
      *
-     * @return DataObject\AbstractObject|Document|Asset
+     * @return DataObject\AbstractObject|Document|Asset|null
      */
     public static function getDependedElement($config)
     {
@@ -226,7 +264,7 @@ class Service extends Model\AbstractModel
             return Document::getById($config['id']);
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -401,6 +439,16 @@ class Service extends Model\AbstractModel
             // only for assets: add the prefix _copy before the file extension (if exist) not after to that source.jpg will be source_copy.jpg and not source.jpg_copy
             if ($type == 'asset' && $fileExtension = File::getFileExtension($sourceKey)) {
                 $sourceKey = preg_replace('/\.' . $fileExtension . '$/i', '_copy.' . $fileExtension, $sourceKey);
+            } elseif (preg_match("/_copy(|_\d*)$/", $sourceKey) === 1) {
+                // If key already ends with _copy or copy_N, append a digit to avoid _copy_copy_copy naming
+                $keyParts = explode('_', $sourceKey);
+                $counterKey = array_key_last($keyParts);
+                if (intval($keyParts[$counterKey]) > 0) {
+                    $keyParts[$counterKey] = intval($keyParts[$counterKey]) + 1;
+                } else {
+                    $keyParts[] = 1;
+                }
+                $sourceKey = implode('_', $keyParts);
             } else {
                 $sourceKey .= '_copy';
             }
@@ -439,7 +487,7 @@ class Service extends Model\AbstractModel
      * @param  int $id
      * @param  bool $force
      *
-     * @return AbstractElement|null
+     * @return Asset|DataObject|Document|null
      */
     public static function getElementById($type, $id, $force = false)
     {
@@ -460,7 +508,7 @@ class Service extends Model\AbstractModel
      *
      * @param ElementInterface $element
      *
-     * @return string
+     * @return string|null
      */
     public static function getElementType($element)
     {
@@ -474,6 +522,25 @@ class Service extends Model\AbstractModel
 
         if ($element instanceof Asset) {
             return 'asset';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param string $className
+     *
+     * @return string|null
+     */
+    public static function getElementTypeByClassName(string $className): ?string
+    {
+        $className = trim($className, '\\');
+        if (is_a($className, AbstractObject::class, true)) {
+            return 'object';
+        } elseif (is_a($className, Asset::class, true)) {
+            return 'asset';
+        } elseif (is_a($className, Document::class, true)) {
+            return 'document';
         }
 
         return null;
@@ -1270,7 +1337,38 @@ class Service extends Model\AbstractModel
             if ($data) {
                 $element = Serialize::unserialize($data);
 
-                return $element;
+                $copier = new DeepCopy();
+                $copier->addTypeFilter(
+                    new \DeepCopy\TypeFilter\ReplaceFilter(
+                        function ($currentValue) {
+                            if ($currentValue instanceof ElementDescriptor) {
+                                $value = Service::getElementById($currentValue->getType(), $currentValue->getId());
+
+                                return $value;
+                            }
+
+                            return $currentValue;
+                        }
+                    ),
+                    new Model\Version\UnmarshalMatcher()
+                );
+
+                if ($element instanceof Concrete) {
+                    $copier->addFilter(
+                        new PimcoreClassDefinitionReplaceFilter(
+                            function (Concrete $object, Data $fieldDefinition, $property, $currentValue) {
+                                if ($fieldDefinition instanceof Data\CustomVersionMarshalInterface) {
+                                    return $fieldDefinition->unmarshalVersion($object, $currentValue);
+                                }
+
+                                return $currentValue;
+                            }
+                        ),
+                        new PimcoreClassDefinitionMatcher(Data\CustomVersionMarshalInterface::class)
+                    );
+                }
+
+                return $copier->copy($element);
             }
         }
 
@@ -1285,8 +1383,41 @@ class Service extends Model\AbstractModel
     public static function saveElementToSession($element, $postfix = '', $clone = true)
     {
         if ($clone) {
+            $sourceType = Service::getType($element);
+            $sourceId = $element->getId();
+
             $copier = new DeepCopy();
-            $copier->skipUncloneable(true);
+            $copier->addTypeFilter(
+                new \DeepCopy\TypeFilter\ReplaceFilter(
+                    function ($currentValue) {
+                        if ($currentValue instanceof ElementInterface) {
+                            $elementType = Service::getType($currentValue);
+                            $descriptor = new ElementDescriptor($elementType, $currentValue->getId());
+
+                            return $descriptor;
+                        }
+
+                        return $currentValue;
+                    }
+                ),
+                new Model\Version\MarshalMatcher($sourceType, $sourceId)
+            );
+
+            if ($element instanceof Concrete) {
+                $copier->addFilter(
+                    new PimcoreClassDefinitionReplaceFilter(
+                        function (Concrete $object, Data $fieldDefinition, $property, $currentValue) {
+                            if ($fieldDefinition instanceof Data\CustomVersionMarshalInterface) {
+                                return $fieldDefinition->marshalVersion($object, $currentValue);
+                            }
+
+                            return $currentValue;
+                        }
+                    ),
+                    new PimcoreClassDefinitionMatcher(Data\CustomVersionMarshalInterface::class)
+                );
+            }
+
             $element = $copier->copy($element);
         }
 

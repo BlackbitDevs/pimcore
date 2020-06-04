@@ -55,7 +55,7 @@ class DataObjectHelperController extends AdminController
     const SYSTEM_COLUMNS = ['id', 'fullpath', 'key', 'published', 'creationDate', 'modificationDate', 'filename', 'classname'];
 
     /**
-     * @Route("/load-object-data", methods={"GET"})
+     * @Route("/load-object-data", name="pimcore_admin_dataobject_dataobjecthelper_loadobjectdata", methods={"GET"})
      *
      * @param Request $request
      *
@@ -81,7 +81,7 @@ class DataObjectHelperController extends AdminController
      * @param string $classId
      * @param string $searchType
      *
-     * @return GridConfig\Listing
+     * @return GridConfig[]
      */
     public function getMyOwnGridColumnConfigs($userId, $classId, $searchType)
     {
@@ -99,9 +99,8 @@ class DataObjectHelperController extends AdminController
         $configListing->setOrderKey('name');
         $configListing->setOrder('ASC');
         $configListing->setCondition($configCondition);
-        $configListing = $configListing->load();
 
-        return $configListing;
+        return $configListing->load();
     }
 
     /**
@@ -140,7 +139,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/import-export-config", methods={"POST"})
+     * @Route("/import-export-config", name="pimcore_admin_dataobject_dataobjecthelper_importexportconfig", methods={"POST"})
      *
      * @param Request $request
      * @param ImportService $importService
@@ -241,7 +240,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/get-export-configs", methods={"GET"})
+     * @Route("/get-export-configs", name="pimcore_admin_dataobject_dataobjecthelper_getexportconfigs", methods={"GET"})
      *
      * @param Request $request
      *
@@ -276,7 +275,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/delete-import-config", methods={"DELETE"})
+     * @Route("/delete-import-config", name="pimcore_admin_dataobject_dataobjecthelper_deleteimportconfig", methods={"DELETE"})
      *
      * @param Request $request
      *
@@ -304,7 +303,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/grid-delete-column-config", methods={"DELETE"})
+     * @Route("/grid-delete-column-config", name="pimcore_admin_dataobject_dataobjecthelper_griddeletecolumnconfig", methods={"DELETE"})
      *
      * @param Request $request
      * @param Config $config
@@ -336,7 +335,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/grid-get-column-config", methods={"GET"})
+     * @Route("/grid-get-column-config", name="pimcore_admin_dataobject_dataobjecthelper_gridgetcolumnconfig", methods={"GET"})
      *
      * @param Request $request
      * @param Config $config
@@ -501,6 +500,7 @@ class DataObjectHelperController extends AdminController
                             'key' => $key,
                             'type' => 'system',
                             'label' => $key,
+                            'locked' => $sc['locked'],
                             'position' => $sc['position']];
                         if (isset($sc['width'])) {
                             $colConfig['width'] = $sc['width'];
@@ -526,6 +526,9 @@ class DataObjectHelperController extends AdminController
                                         if ($fieldConfig) {
                                             $fieldConfig['key'] = $key;
                                             $fieldConfig['label'] = '#' . $keyFieldDef->getTitle();
+                                            if (isset($sc['locked'])) {
+                                                $fieldConfig['locked'] = $sc['locked'];
+                                            }
                                             $availableFields[] = $fieldConfig;
                                         }
                                     }
@@ -548,13 +551,15 @@ class DataObjectHelperController extends AdminController
 
                             $brickClass = DataObject\Objectbrick\Definition::getByKey($brick);
 
-                            if ($brickDescriptor) {
-                                $innerContainer = $brickDescriptor['innerContainer'] ?? 'localizedfields';
-                                /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedFields */
-                                $localizedFields = $brickClass->getFieldDefinition($innerContainer);
-                                $fd = $localizedFields->getFieldDefinition($brickDescriptor['brickfield']);
-                            } else {
-                                $fd = $brickClass->getFieldDefinition($fieldname);
+                            if ($brickClass instanceof DataObject\Objectbrick\Definition) {
+                                if ($brickDescriptor) {
+                                    $innerContainer = $brickDescriptor['innerContainer'] ?? 'localizedfields';
+                                    /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedFields */
+                                    $localizedFields = $brickClass->getFieldDefinition($innerContainer);
+                                    $fd = $localizedFields->getFieldDefinition($brickDescriptor['brickfield']);
+                                } else {
+                                    $fd = $brickClass->getFieldDefinition($fieldname);
+                                }
                             }
 
                             if (!empty($fd)) {
@@ -562,6 +567,9 @@ class DataObjectHelperController extends AdminController
                                 if (!empty($fieldConfig)) {
                                     if (isset($sc['width'])) {
                                         $fieldConfig['width'] = $sc['width'];
+                                    }
+                                    if (isset($sc['locked'])) {
+                                        $fieldConfig['locked'] = $sc['locked'];
                                     }
                                     $availableFields[] = $fieldConfig;
                                 }
@@ -591,6 +599,7 @@ class DataObjectHelperController extends AdminController
                                             $fieldConfig['width'] = $sc['width'];
                                         }
 
+                                        $fieldConfig['locked'] = $sc['locked'];
                                         $availableFields[] = $fieldConfig;
                                     }
                                 }
@@ -795,6 +804,7 @@ class DataObjectHelperController extends AdminController
                 $calculatedColumnConfig['isOperator'] = true;
                 $calculatedColumnConfig['attributes'] = $config['fieldConfig']['attributes'];
                 $calculatedColumnConfig['width'] = $config['width'];
+                $calculatedColumnConfig['locked'] = $config['locked'];
 
                 $existingColumns = $session->get('helpercolumns', []);
 
@@ -825,7 +835,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/prepare-helper-column-configs", methods={"POST"})
+     * @Route("/prepare-helper-column-configs", name="pimcore_admin_dataobject_dataobjecthelper_preparehelpercolumnconfigs", methods={"POST"})
      *
      * @param Request $request
      *
@@ -835,6 +845,7 @@ class DataObjectHelperController extends AdminController
     {
         $helperColumns = [];
         $newData = [];
+        /** @var \stdClass[] $data */
         $data = json_decode($request->get('columns'));
         foreach ($data as $item) {
             if (!empty($item->isOperator)) {
@@ -858,7 +869,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/grid-config-apply-to-all", methods={"POST"})
+     * @Route("/grid-config-apply-to-all", name="pimcore_admin_dataobject_dataobjecthelper_gridconfigapplytoall", methods={"POST"})
      *
      * @param Request $request
      *
@@ -888,7 +899,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/grid-mark-favourite-column-config", methods={"POST"})
+     * @Route("/grid-mark-favourite-column-config", name="pimcore_admin_dataobject_dataobjecthelper_gridmarkfavouritecolumnconfig", methods={"POST"})
      *
      * @param Request $request
      *
@@ -981,7 +992,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/import-save-config", methods={"POST"})
+     * @Route("/import-save-config", name="pimcore_admin_dataobject_dataobjecthelper_importsaveconfig", methods={"POST"})
      *
      * @param Request $request
      * @param ImportService $importService
@@ -1043,7 +1054,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/grid-save-column-config", methods={"POST"})
+     * @Route("/grid-save-column-config", name="pimcore_admin_dataobject_dataobjecthelper_gridsavecolumnconfig", methods={"POST"})
      *
      * @param Request $request
      *
@@ -1285,7 +1296,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/prepare-import-preview", methods={"POST"})
+     * @Route("/prepare-import-preview", name="pimcore_admin_dataobject_dataobjecthelper_prepareimportpreview", methods={"POST"})
      *
      * @param Request $request
      *
@@ -1313,7 +1324,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/import-preview", methods={"GET"})
+     * @Route("/import-preview", name="pimcore_admin_dataobject_dataobjecthelper_importpreview", methods={"GET"})
      *
      * @param Request $request
      * @param ImportService $importService
@@ -1459,7 +1470,7 @@ class DataObjectHelperController extends AdminController
      */
 
     /**
-     * @Route("/import-upload", methods={"POST"})
+     * @Route("/import-upload", name="pimcore_admin_dataobject_dataobjecthelper_importupload", methods={"POST"})
      *
      * @param Request $request
      *
@@ -1490,7 +1501,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/import-get-file-info", methods={"GET"})
+     * @Route("/import-get-file-info", name="pimcore_admin_dataobject_dataobjecthelper_importgetfileinfo", methods={"GET"})
      *
      * @param Request $request
      * @param ImportService $importService
@@ -1514,28 +1525,10 @@ class DataObjectHelperController extends AdminController
             $dialect = Tool\Admin::determineCsvDialect($file . '_original');
         }
 
-        $count = 0;
-        $data = [];
-        if (($handle = fopen($originalFile, 'r')) !== false) {
-            while (($rowData = fgetcsv($handle, 0, $dialect->delimiter, $dialect->quotechar, $dialect->escapechar)) !== false) {
-                $tmpData = [];
+        $data = $this->getDataPreview($originalFile, $dialect);
 
-                foreach ($rowData as $key => $value) {
-                    $tmpData['field_' . $key] = $value;
-                }
-
-                $tmpData['rowId'] = $count + 1;
-                $data[] = $tmpData;
-                $cols = count($rowData);
-
-                $count++;
-
-                if ($count > 18) {
-                    break;
-                }
-            }
-            fclose($handle);
-        }
+        //Count CSV Columns
+        $cols = isset($data[0]) ? count($data[0]) - 1 : 0;
 
         // get class data
         $class = DataObject\ClassDefinition::getById($request->get('classId'));
@@ -1566,8 +1559,15 @@ class DataObjectHelperController extends AdminController
             if (0 === $rows) {
                 $nbFields = count($fields);
                 $rows++;
-            } elseif ($nbFields == count($fields)) {
+            } elseif ($nbFields === count($fields)) {
                 $rows++;
+            } else {
+                $translator = $this->get('translator');
+
+                return $this->adminJson([
+                    'success' => false,
+                    'message' => $translator->trans('different_number_of_columns', [], 'admin'),
+                ]);
             }
         }
 
@@ -1614,8 +1614,38 @@ class DataObjectHelperController extends AdminController
         ]);
     }
 
+    private function getDataPreview($originalFile, $dialect)
+    {
+        $count = 0;
+        $data = [];
+        if (($handle = fopen($originalFile, 'r')) !== false) {
+            while (($rowData = fgetcsv($handle, 0, $dialect->delimiter, $dialect->quotechar, $dialect->escapechar)) !== false) {
+                $tmpData = [];
+
+                foreach ($rowData as $key => $value) {
+                    $tmpData['field_' . $key] = $value;
+                }
+
+                $tmpData['rowId'] = $count + 1;
+                $data[] = $tmpData;
+
+                $count++;
+
+                /**
+                 * Reached the number or rows for the preview
+                 */
+                if ($count > 18) {
+                    break;
+                }
+            }
+            fclose($handle);
+        }
+
+        return $data;
+    }
+
     /**
-     * @Route("/import-process", methods={"POST"})
+     * @Route("/import-process", name="pimcore_admin_dataobject_dataobjecthelper_importprocess", methods={"POST"})
      *
      * @param Request $request
      * @param ImportService $importService
@@ -1756,7 +1786,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/get-export-jobs", methods={"GET"})
+     * @Route("/get-export-jobs", name="pimcore_admin_dataobject_dataobjecthelper_getexportjobs", methods={"GET"})
      *
      * @param Request $request
      * @param GridHelperService $gridHelperService
@@ -1781,7 +1811,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/do-export", methods={"POST"})
+     * @Route("/do-export", name="pimcore_admin_dataobject_dataobjecthelper_doexport", methods={"POST"})
      *
      * @param Request $request
      * @param LocaleServiceInterface $localeService
@@ -1854,7 +1884,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/download-csv-file", methods={"GET"})
+     * @Route("/download-csv-file", name="pimcore_admin_dataobject_dataobjecthelper_downloadcsvfile", methods={"GET"})
      *
      * @param Request $request
      *
@@ -1877,7 +1907,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/download-xlsx-file", methods={"GET"})
+     * @Route("/download-xlsx-file", name="pimcore_admin_dataobject_dataobjecthelper_downloadxlsxfile", methods={"GET"})
      *
      * @param Request $request
      *
@@ -2050,7 +2080,14 @@ class DataObjectHelperController extends AdminController
                 // check for objects bricks and localized fields
                 if (DataObject\Service::isHelperGridColumnConfig($field)) {
                     if ($helperDefinitions[$field]) {
-                        return DataObject\Service::calculateCellValue($object, $helperDefinitions, $field, ['language' => $requestedLanguage]);
+                        $cellValue = DataObject\Service::calculateCellValue($object, $helperDefinitions, $field, ['language' => $requestedLanguage]);
+
+                        // Mimic grid concatenation behavior
+                        if (is_array($cellValue)) {
+                            $cellValue = implode(',', $cellValue);
+                        }
+
+                        return $cellValue;
                     }
                 } elseif (substr($field, 0, 1) == '~') {
                     $type = $fieldParts[1];
@@ -2184,7 +2221,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/get-batch-jobs", methods={"GET"})
+     * @Route("/get-batch-jobs", name="pimcore_admin_dataobject_dataobjecthelper_getbatchjobs", methods={"GET"})
      *
      * @param Request $request
      *
@@ -2205,7 +2242,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/batch", methods={"PUT"})
+     * @Route("/batch", name="pimcore_admin_dataobject_dataobjecthelper_batch", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -2393,7 +2430,7 @@ class DataObjectHelperController extends AdminController
     }
 
     /**
-     * @Route("/get-available-visible-vields", methods={"GET"})
+     * @Route("/get-available-visible-vields", name="pimcore_admin_dataobject_dataobjecthelper_getavailablevisiblefields", methods={"GET"})
      *
      * @param Request $request
      *
@@ -2488,5 +2525,97 @@ class DataObjectHelperController extends AdminController
                 $commonFields[$fd->getName()] = $fd;
             }
         }
+    }
+
+    /**
+     * @Route("/export-csv-import-config-as-json", methods={"GET"})
+     *
+     * @param Request $request
+     *
+     * @return Response
+     */
+    public function exportCsvImportConfigAsJsonAction(Request $request)
+    {
+        $classId = $request->get('classId');
+        $configData = json_decode($request->get('config'), true);
+
+        try {
+            $configName = $configData['shareSettings']['configName'];
+
+            if (empty($configName)) {
+                $configName = date('YmdHis').'_'.$classId.'_configuration';
+            }
+
+            $jsonResponse = new JsonResponse(json_encode($configData), 200, [
+                'Content-Disposition' => 'attachment; filename="'.$configName.'.json"'
+            ], true);
+
+            return $jsonResponse;
+        } catch (\Exception $e) {
+            throw new \Exception('Error retrieving import configuration - '.$e->getMessage());
+        }
+    }
+
+    /**
+     * @Route("/import-csv-import-config-from-json", methods={"POST"})
+     *
+     * @param Request $request
+     * @param ImportService $importService
+     *
+     * @return JsonResponse
+     */
+    public function importCSVImportConfigFromJsonAction(Request $request, ImportService $importService)
+    {
+        $importConfigId = $request->get('importConfigId');
+
+        $tmpName = $_FILES['Filedata']['tmp_name'];
+        $json = file_get_contents($tmpName);
+
+        $configData = json_decode($json, true);
+
+        $dataFields = $configData['dataFields'];
+        $targetFields = $configData['targetFields'];
+        $selectedGridColumns = $configData['selectedGridColumns'];
+        $resolverSettings = $configData['resolverSettings'];
+        $shareSettings = $configData['shareSettings'];
+        $dialect = json_decode(json_encode($configData['csvSettings']), false);
+
+        $success = true;
+        $classId = $request->get('classId');
+
+        $file = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/import_' . $request->get('importId');
+
+        $originalFile = $file . '_original';
+        // determine type
+        if (empty($dialect)) {
+            $dialect = Tool\Admin::determineCsvDialect($originalFile);
+        }
+
+        /**
+         * Reload data form original CSV to properly refresh
+         * the data preview on the import interface
+         */
+        $data = $this->getDataPreview($originalFile, $dialect);
+
+        $availableConfigs = $this->getImportConfigs($importService, Tool\Admin::getCurrentUser(), $classId);
+
+        return $this->adminJson([
+            'success' => $success,
+            'config' => [
+                'importConfigId' => $importConfigId,
+                'dataPreview' => $data,
+                'dataFields' => $dataFields,
+                'targetFields' => $targetFields,
+                'selectedGridColumns' => $selectedGridColumns,
+                'resolverSettings' => $resolverSettings ?? null,
+                'shareSettings' => $shareSettings ?? null,
+                'csvSettings' => $dialect,
+                'rows' => $configData['rows'],
+                'cols' => $configData['cols'] ?? null,
+                'classId' => $classId,
+                'isShared' => $configData['isShared']
+            ],
+            'availableConfigs' => $availableConfigs
+        ]);
     }
 }

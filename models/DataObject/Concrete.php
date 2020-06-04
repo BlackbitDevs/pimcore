@@ -23,7 +23,9 @@ use Pimcore\Event\Model\DataObjectEvent;
 use Pimcore\Logger;
 use Pimcore\Model;
 use Pimcore\Model\DataObject\ClassDefinition\Data\LazyLoadingSupportInterface;
+use Pimcore\Model\DataObject\ClassDefinition\Data\Relations\AbstractRelations;
 use Pimcore\Model\DataObject\Exception\InheritanceParentNotFoundException;
+use Pimcore\Model\Element\DirtyIndicatorInterface;
 
 /**
  * @method \Pimcore\Model\DataObject\Concrete\Dao getDao()
@@ -47,7 +49,7 @@ class Concrete extends AbstractObject implements LazyLoadedFieldsInterface
     protected $o_published;
 
     /**
-     * @var ClassDefinition
+     * @var ClassDefinition|null
      */
     protected $o_class;
 
@@ -62,14 +64,14 @@ class Concrete extends AbstractObject implements LazyLoadedFieldsInterface
     protected $o_className;
 
     /**
-     * @var array
+     * @var array|null
      */
     protected $o_versions = null;
 
     /**
      * Contains all scheduled tasks
      *
-     * @var array
+     * @var array|null
      */
     protected $scheduledTasks = null;
 
@@ -623,6 +625,7 @@ class Concrete extends AbstractObject implements LazyLoadedFieldsInterface
 
         // get real fieldname (case sensitive)
         $fieldnames = [];
+        $defaultCondition = '';
         foreach ($classDefinition->getFieldDefinitions() as $fd) {
             $fieldnames[] = $fd->getName();
         }
@@ -678,7 +681,9 @@ class Concrete extends AbstractObject implements LazyLoadedFieldsInterface
                 $arguments = array_pad($arguments, 3, 0);
                 [$value, $limit, $offset] = $arguments;
 
-                $defaultCondition = $realPropertyName . ' = ' . Db::get()->quote($value) . ' ';
+                if (!$field instanceof AbstractRelations) {
+                    $defaultCondition = $realPropertyName . ' = ' . Db::get()->quote($value) . ' ';
+                }
                 $listConfig = [
                     'condition' => $defaultCondition
                 ];
@@ -693,10 +698,15 @@ class Concrete extends AbstractObject implements LazyLoadedFieldsInterface
                 }
             } else {
                 $listConfig = array_merge($listConfig, $limit);
-                $listConfig['condition'] = $defaultCondition . $limit['condition'];
+                $limitCondition = $limit['condition'] ?? '';
+                $listConfig['condition'] = $defaultCondition . $limitCondition;
             }
 
             $list = static::getList($listConfig);
+
+            if ($field instanceof AbstractRelations && $field->isFilterable()) {
+                $list = $field->addListingFilter($list, $value);
+            }
 
             if (isset($listConfig['limit']) && $listConfig['limit'] == 1) {
                 $elements = $list->getObjects();

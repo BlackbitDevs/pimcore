@@ -354,7 +354,7 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
                     var dataProvider = this.getDataProvider(currentLanguage);
                     this.languageElements[currentLanguage] = [];
 
-                    var editable = (pimcore.currentuser.admin ||
+                    var editable = !showMode && (pimcore.currentuser.admin ||
                         this.fieldConfig.permissionEdit === undefined || this.fieldConfig.permissionEdit.length == 0 || in_array(currentLanguage, this.fieldConfig.permissionEdit));
 
                     var runtimeContext = Ext.clone(this.context);
@@ -476,7 +476,7 @@ pimcore.object.tags.localizedfields = Class.create(pimcore.object.tags.abstract,
             });
         } else {
             item.iconCls = "pimcore_icon_language_" + language.toLowerCase();
-            item.title = pimcore.available_languages[language];
+            item.title = t(pimcore.available_languages[language]);
         }
     },
 
