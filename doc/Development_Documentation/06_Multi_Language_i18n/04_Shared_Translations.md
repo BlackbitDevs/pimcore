@@ -52,10 +52,11 @@ class ContentController extends FrontendController
         $translatedLegalNotice = $translator->trans("legal_notice");
         $siteName = "Demo"; // or get dynamically
         // variable interpolation, 'about' translates to 'About {{siteName}}'
-        $translatedAbout = $translator->trans("about", ['siteName' => $siteName]);
+        $translatedAbout = $translator->trans("about", ['{{siteName}}' => $siteName]);
     }
 }
 ```
+Parameters in translations can be wrapped in double curly braces (`{{` and `}}`) but you are free to use other placeholder wrappers, e.g. `%parameter%` like in the [Symfony docs](https://symfony.com/doc/current/translation.html#translatable-objects) also works.
 
 
 ## Pimcore backend functionalities
