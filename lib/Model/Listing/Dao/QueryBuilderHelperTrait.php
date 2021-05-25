@@ -10,7 +10,7 @@
  * LICENSE.md which is distributed with this source code.
  *
  *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- *  @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Model\Listing\Dao;
@@ -172,6 +172,7 @@ trait QueryBuilderHelperTrait
                 }
             }
         } elseif ($queryBuilder instanceof ZendCompatibilityQueryBuilder) {
+            $queryBuilder->reset(ZendCompatibilityQueryBuilder::COLUMNS);
             $queryBuilder->columns([new Expression('COUNT(*)')]);
             $queryBuilder->reset(ZendCompatibilityQueryBuilder::LIMIT_COUNT);
             $queryBuilder->reset(ZendCompatibilityQueryBuilder::LIMIT_OFFSET);

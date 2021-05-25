@@ -10,7 +10,7 @@
  * LICENSE.md which is distributed with this source code.
  *
  *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- *  @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Workflow;
@@ -254,8 +254,7 @@ class Manager
         $changePublishedState = $transition instanceof Transition ? $transition->getChangePublishedState() : null;
 
         if ($saveSubject && $subject instanceof AbstractElement) {
-            if (method_exists($subject, 'getPublished')
-                && (!$subject->getPublished() || $changePublishedState === ChangePublishedStateSubscriber::SAVE_VERSION)) {
+            if ($changePublishedState === ChangePublishedStateSubscriber::SAVE_VERSION) {
                 $subject->saveVersion();
             } else {
                 $subject->save();

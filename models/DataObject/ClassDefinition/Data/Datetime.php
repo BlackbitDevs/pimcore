@@ -10,7 +10,7 @@
  * LICENSE.md which is distributed with this source code.
  *
  *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- *  @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Model\DataObject\ClassDefinition\Data;
@@ -318,6 +318,7 @@ class Datetime extends Data implements ResourcePersistenceAwareInterface, QueryR
         if ($timestamp !== false) {
             return $this->getDateFromTimestamp($timestamp);
         }
+
         throw new \Exception('cannot get values from web service import - invalid data');
     }
 
@@ -523,5 +524,19 @@ class Datetime extends Data implements ResourcePersistenceAwareInterface, QueryR
         }
 
         return null;
+    }
+
+    /**
+     * overwrite default implementation to consider columnType & queryColumnType from class config
+     *
+     * @return array
+     */
+    public function resolveBlockedVars(): array
+    {
+        $defaultBlockedVars = [
+            'fieldDefinitionsCache',
+        ];
+
+        return array_merge($defaultBlockedVars, $this->getBlockedVarsForExport());
     }
 }
