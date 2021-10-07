@@ -956,7 +956,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface,
                                 $fd->checkValidity(null, false, $params);
                             }
                         } catch (\Exception $e) {
-                            if ($data->getObject()->getClass()->getAllowInherit()) {
+                            if ($fd->supportsInheritance() && $fd->isEmpty($dataForValidityCheck[$language][$fd->getName()]) && $data->getObject()->getClass()->getAllowInherit()) {
                                 //try again with parent data when inheritance is activated
                                 try {
                                     $getInheritedValues = DataObject::doGetInheritedValues();
@@ -984,13 +984,7 @@ class Localizedfields extends Data implements CustomResourcePersistingInterface,
                                     }
                                     $exceptionClass = get_class($e);
 
-                                    $newException = new $exceptionClass($e->getMessage() . ' fieldname=' . $fd->getName(), $e->getCode(), $e->getPrevious());
-                                    $subItems = $e->getSubItems();
-                                    array_unshift($subItems, $e);
-                                    $newException->setSubItems($subItems);
-                                    $newException->addContext($this->getName().'-'.$language);
-
-                                    throw $newException;
+                                    throw new $exceptionClass($e->getMessage() . ' fieldname=' . $fd->getName(), $e->getCode(), $e->getPrevious());
                                 }
                             } else {
                                 if ($e instanceof Model\Element\ValidationException) {
