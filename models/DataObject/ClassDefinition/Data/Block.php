@@ -29,7 +29,9 @@ use Pimcore\Tool\Serialize;
 class Block extends Data implements CustomResourcePersistingInterface, ResourcePersistenceAwareInterface, LazyLoadingSupportInterface, TypeDeclarationSupportInterface, VarExporterInterface, NormalizerInterface, DataContainerAwareInterface, PreGetDataInterface, PreSetDataInterface
 {
     use Element\ChildsCompatibilityTrait;
+
     use Extension\ColumnType;
+
     use DataObject\Traits\ClassSavedTrait;
 
     /**
@@ -361,7 +363,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
                         $items = $object->$blockGetter($language);
                         if (isset($items[$oIndex])) {
                             $item = $items[$oIndex][$elementName];
-                            $blockData = $item->getData();
+                            $blockData = $blockElement[$elementName] ?: $item->getData();
                             $resultElement[$elementName] = new DataObject\Data\BlockElement($elementName, $elementType, $blockData);
                         }
                     } else {
@@ -372,7 +374,7 @@ class Block extends Data implements CustomResourcePersistingInterface, ResourceP
                         }
                     }
                 } else {
-                    $elementData = $blockElement[$elementName];
+                    $elementData = $blockElement[$elementName] ?? null;
                     $blockData = $fd->getDataFromEditmode(
                         $elementData,
                         $object,
