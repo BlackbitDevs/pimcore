@@ -73,6 +73,7 @@ trait TemporaryFileHelperTrait
 
         stream_copy_to_stream($src, $dest);
         fclose($dest);
+        fclose($src);
 
         if (!$keep) {
             register_shutdown_function(static function () use ($tmpFilePath) {
