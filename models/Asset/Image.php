@@ -331,7 +331,8 @@ EOT;
             $arguments = [
                 'pimcore:thumbnails:clear',
                 '--type=image',
-                '--id='.$this->getId()
+                '--id='.$this->getId(),
+                '--path='.$this->getImageThumbnailSavePath()
             ];
 
             Console::runPhpScriptInBackground(realpath(PIMCORE_PROJECT_ROOT.DIRECTORY_SEPARATOR.'bin'.DIRECTORY_SEPARATOR.'console'), $arguments);

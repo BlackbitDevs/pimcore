@@ -45,6 +45,12 @@ class ThumbnailsClearCommand extends AbstractCommand
                 null,
                 InputOption::VALUE_REQUIRED,
                 'asset id'
+            )
+            ->addOption(
+                'path',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'asset id'
             );
     }
 
@@ -61,7 +67,7 @@ class ThumbnailsClearCommand extends AbstractCommand
         }
 
         if (!$input->getOption('name') && !$input->getOption('id')) {
-            $this->writeError('Input option `name` or `id` is required');
+            $this->writeError('Input option `name` or `id` + `path` is required');
 
             return 1;
         }
@@ -78,10 +84,20 @@ class ThumbnailsClearCommand extends AbstractCommand
 
             $thumbConfig->clearTempFiles();
         } else {
-            $asset = Asset::getById($input->getOption('id'));
-            $directoryIterator = new \DirectoryIterator($asset->getImageThumbnailSavePath());
-            $filterIterator = new \CallbackFilterIterator($directoryIterator, function (\SplFileInfo $fileInfo) use ($asset) {
-                return strpos($fileInfo->getFilename(), 'image-thumb__'.$asset->getId()) === 0;
+            $path = $input->getOption('path');
+            if(!$path) {
+                $asset = Asset::getById($input->getOption('id'));
+                if(!$asset instanceof Asset) {
+                    $this->writeError('Could not resolve asset path');
+
+                    return 1;
+                }
+                $path = $asset->getImageThumbnailSavePath();
+            }
+
+            $directoryIterator = new \DirectoryIterator($path);
+            $filterIterator = new \CallbackFilterIterator($directoryIterator, function (\SplFileInfo $fileInfo) use ($input) {
+                return strpos($fileInfo->getFilename(), 'image-thumb__'.$input->getOption('id')) === 0;
             });
             /** @var \SplFileInfo $fileInfo */
             foreach ($filterIterator as $fileInfo) {
