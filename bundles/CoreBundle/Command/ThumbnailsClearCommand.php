@@ -39,6 +39,12 @@ class ThumbnailsClearCommand extends AbstractCommand
                 null,
                 InputOption::VALUE_REQUIRED,
                 'name of the thumbnail config of which the temp. files should be cleared'
+            )
+            ->addOption(
+                'id',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'asset id'
             );
     }
 
@@ -54,22 +60,35 @@ class ThumbnailsClearCommand extends AbstractCommand
             return 1;
         }
 
-        if (!$input->getOption('name')) {
-            $this->writeError('Input option `name` is required');
+        if (!$input->getOption('name') && !$input->getOption('id')) {
+            $this->writeError('Input option `name` or `id` is required');
 
             return 1;
         }
 
-        $configClass = 'Pimcore\Model\Asset\\' . ucfirst($input->getOption('type')) . '\Thumbnail\Config';
-        /** @var Asset\Image\Thumbnail\Config|Asset\Video\Thumbnail\Config $thumbConfig */
-        $thumbConfig = $configClass::getByName($input->getOption('name'));
-        if (!$thumbConfig) {
-            $this->writeError(sprintf('Unable to find %s thumbnail config with name: %s', $input->getOption('type'), $input->getOption('name')));
+        if($input->getOption('name')) {
+            $configClass = 'Pimcore\Model\Asset\\'.ucfirst($input->getOption('type')).'\Thumbnail\Config';
+            /** @var Asset\Image\Thumbnail\Config|Asset\Video\Thumbnail\Config $thumbConfig */
+            $thumbConfig = $configClass::getByName($input->getOption('name'));
+            if (!$thumbConfig) {
+                $this->writeError(sprintf('Unable to find %s thumbnail config with name: %s', $input->getOption('type'), $input->getOption('name')));
 
-            return 1;
+                return 1;
+            }
+
+            $thumbConfig->clearTempFiles();
+        } else {
+            $asset = Asset::getById($input->getOption('id'));
+            $directoryIterator = new \DirectoryIterator($asset->getImageThumbnailSavePath());
+            $filterIterator = new \CallbackFilterIterator($directoryIterator, function (\SplFileInfo $fileInfo) use ($asset) {
+                return strpos($fileInfo->getFilename(), 'image-thumb__'.$asset->getId()) === 0;
+            });
+            /** @var \SplFileInfo $fileInfo */
+            foreach ($filterIterator as $fileInfo) {
+                recursiveDelete($fileInfo->getPathname());
+            }
         }
 
-        $thumbConfig->clearTempFiles();
 
         return 0;
     }

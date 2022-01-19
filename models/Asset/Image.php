@@ -328,14 +328,13 @@ EOT;
     public function clearThumbnails($force = false)
     {
         if (($this->getDataChanged() || $force) && is_dir($this->getImageThumbnailSavePath())) {
-            $directoryIterator = new \DirectoryIterator($this->getImageThumbnailSavePath());
-            $filterIterator = new \CallbackFilterIterator($directoryIterator, function (\SplFileInfo $fileInfo) {
-                return strpos($fileInfo->getFilename(), 'image-thumb__' . $this->getId()) === 0;
-            });
-            /** @var \SplFileInfo $fileInfo */
-            foreach ($filterIterator as $fileInfo) {
-                recursiveDelete($fileInfo->getPathname());
-            }
+            $arguments = [
+                'pimcore:thumbnails:clear',
+                '--type=image',
+                '--id='.$this->getId()
+            ];
+
+            Console::runPhpScriptInBackground(realpath(PIMCORE_PROJECT_ROOT.DIRECTORY_SEPARATOR.'bin'.DIRECTORY_SEPARATOR.'console'), $arguments);
         }
     }
 
