@@ -154,7 +154,7 @@ class Processor
             $format = 'webp';
         }
 
-        $thumbDir = $asset->getImageThumbnailSavePath() . '/image-thumb__' . $asset->getId() . '__' . $config->getName();
+        $thumbDir = $asset->getImageThumbnailSavePath() . '/image-thumb__' . $asset->getId() . '/' . $config->getName();
         $filename = preg_replace("/\." . preg_quote(File::getFileExtension($asset->getFilename()), '/') . '$/i', '', $asset->getFilename());
 
         // add custom suffix if available

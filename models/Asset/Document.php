@@ -164,7 +164,7 @@ class Document extends Model\Asset
                 }
             }
 
-            $files = glob($this->getImageThumbnailSavePath() . '/image-thumb__' . $this->getId() . '__*');
+            $files = glob($this->getImageThumbnailSavePath() . '/image-thumb__' . $this->getId() . '/*');
             foreach ($files as $file) {
                 recursiveDelete($file);
             }

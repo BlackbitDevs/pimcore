@@ -328,14 +328,7 @@ EOT;
     public function clearThumbnails($force = false)
     {
         if (($this->getDataChanged() || $force) && is_dir($this->getImageThumbnailSavePath())) {
-            $directoryIterator = new \DirectoryIterator($this->getImageThumbnailSavePath());
-            $filterIterator = new \CallbackFilterIterator($directoryIterator, function (\SplFileInfo $fileInfo) {
-                return strpos($fileInfo->getFilename(), 'image-thumb__' . $this->getId()) === 0;
-            });
-            /** @var \SplFileInfo $fileInfo */
-            foreach ($filterIterator as $fileInfo) {
-                recursiveDelete($fileInfo->getPathname());
-            }
+            recursiveDelete($this->getImageThumbnailSavePath().'/image-thumb__' . $this->getId());
         }
     }
 
@@ -344,7 +337,7 @@ EOT;
      */
     public function clearThumbnail($name)
     {
-        $dir = $this->getImageThumbnailSavePath() . '/image-thumb__' . $this->getId() . '__' . $name;
+        $dir = $this->getImageThumbnailSavePath() . '/image-thumb__' . $this->getId() . '/' . $name;
         if (is_dir($dir)) {
             recursiveDelete($dir);
         }
