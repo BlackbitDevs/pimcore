@@ -61,7 +61,7 @@ trait TemporaryFileHelperTrait
         } else {
             $src = $stream;
             $streamMeta = stream_get_meta_data($src);
-            $fileExtension = File::getFileExtension($streamMeta['uri']);
+            $fileExtension = File::getValidFilename(File::getFileExtension($streamMeta['uri']));
         }
 
         $tmpFilePath = File::getLocalTempFilePath($fileExtension);
