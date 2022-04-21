@@ -135,7 +135,3 @@ services:
             - '@logger'
         tags:
             - { name: pimcore.maintenance.task, type: markexpiredtagsdisabled }
-
-    Pimcore\Maintenance\Tasks\FullTextIndexOptimizeTask:
-        tags:
-            - { name: pimcore.maintenance.task, type: optimize_fulltext_indexes }
