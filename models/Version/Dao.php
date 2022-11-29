@@ -131,7 +131,7 @@ class Dao extends Model\Dao\AbstractDao
      */
     public function maintenanceGetOutdatedVersions($elementTypes, $ignoreIds = [])
     {
-        $ignoreIdsList = implode(',', $ignoreIds);
+        $ignoreIdsList = implode(',', array_unique($ignoreIds));
         if (!$ignoreIdsList) {
             $ignoreIdsList = '0'; // set a default to avoid SQL errors (there's no version with ID 0)
         }
