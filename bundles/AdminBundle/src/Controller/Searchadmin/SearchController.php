@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -45,17 +46,12 @@ class SearchController extends AdminController
 
     /**
      * @Route("/find", name="pimcore_admin_searchadmin_search_find", methods={"GET", "POST"})
-     *
-     * @param Request $request
-     *
-     * @return JsonResponse
-     *
      * @todo: $conditionTypeParts could be undefined
      * @todo: $conditionSubtypeParts could be undefined
      * @todo: $conditionClassnameParts could be undefined
      * @todo: $data could be undefined
      */
-    public function findAction(Request $request, EventDispatcherInterface $eventDispatcher, GridHelperService $gridHelperService)
+    public function findAction(Request $request, EventDispatcherInterface $eventDispatcher, GridHelperService $gridHelperService): JsonResponse
     {
         $allParams = array_merge($request->request->all(), $request->query->all());
 
@@ -134,7 +130,7 @@ class SearchController extends AdminController
 
             foreach ($params as $paramConditionObject) {
                 //this loop divides filter parameters to localized and unlocalized groups
-                $definitionExists = in_array('o_' . $paramConditionObject['property'], DataObject\Service::getSystemFields())
+                $definitionExists = in_array($paramConditionObject['property'], DataObject\Service::getSystemFields())
                     || $class->getFieldDefinition($paramConditionObject['property']);
                 if ($definitionExists) { //TODO: for sure, we can add additional condition like getLocalizedFieldDefinition()->getFieldDefiniton(...
                     $unlocalizedFieldsFilters[] = $paramConditionObject;
@@ -160,15 +156,15 @@ class SearchController extends AdminController
                 $join .= ' `' . $ob . '`';
 
                 if ($localizedConditionFilters) {
-                    $localizedJoin = $join . ' ON `' . $ob . '`.o_id = `object_localized_data_' . $class->getId() . '`.ooo_id';
+                    $localizedJoin = $join . ' ON `' . $ob . '`.id = `object_localized_data_' . $class->getId() . '`.ooo_id';
                 }
 
-                $join .= ' ON `' . $ob . '`.o_id = `object_' . $class->getId() . '`.o_id';
+                $join .= ' ON `' . $ob . '`.id = `object_' . $class->getId() . '`.id';
             }
 
             if (null !== $conditionFilters) {
                 //add condition query for non localised fields
-                $conditionParts[] = '( id IN (SELECT `object_' . $class->getId() . '`.o_id FROM object_' . $class->getId()
+                $conditionParts[] = '( id IN (SELECT `object_' . $class->getId() . '`.id FROM object_' . $class->getId()
                     . $join . ' WHERE ' . $conditionFilters . ') )';
             }
 
@@ -196,7 +192,7 @@ class SearchController extends AdminController
             foreach ($subtypes as $subtype) {
                 $conditionSubtypeParts[] = $db->quote($subtype);
             }
-            $conditionParts[] = '( type IN (' . implode(',', $conditionSubtypeParts) . ') )';
+            $conditionParts[] = '( `type` IN (' . implode(',', $conditionSubtypeParts) . ') )';
         }
 
         if (is_array($classnames) && !empty($classnames[0])) {
@@ -301,11 +297,8 @@ class SearchController extends AdminController
             }
         }
 
-        if (count($conditionParts) > 0) {
-            $condition = implode(' AND ', $conditionParts);
-            $searcherList->setCondition($condition);
-        }
-
+        $condition = implode(' AND ', $conditionParts);
+        $searcherList->setCondition($condition);
         $searcherList->setOffset($offset);
         $searcherList->setLimit($limit);
 
@@ -421,13 +414,14 @@ class SearchController extends AdminController
     }
 
     /**
-     * @internal
-     *
      * @param array $types
      *
      * @return string
+     *
+     *@internal
+     *
      */
-    protected function getPermittedPaths($types = ['asset', 'document', 'object'])
+    protected function getPermittedPaths(array $types = ['asset', 'document', 'object']): string
     {
         $user = $this->getAdminUser();
         $db = \Pimcore\Db::get();
@@ -485,12 +479,7 @@ class SearchController extends AdminController
         return '('.implode(' OR ', $allowedTypes) .')';
     }
 
-    /**
-     * @param string $query
-     *
-     * @return string
-     */
-    protected function filterQueryParam(string $query)
+    protected function filterQueryParam(string $query): string
     {
         if ($query == '*') {
             $query = '';
@@ -520,7 +509,7 @@ class SearchController extends AdminController
      *
      * @return JsonResponse
      */
-    public function quicksearchAction(Request $request, EventDispatcherInterface $eventDispatcher)
+    public function quicksearchAction(Request $request, EventDispatcherInterface $eventDispatcher): JsonResponse
     {
         $query = $this->filterQueryParam($request->get('query', ''));
         if (!preg_match('/[\+\-\*"]/', $query)) {
@@ -537,7 +526,7 @@ class SearchController extends AdminController
         $conditionParts[] = $this->getPermittedPaths();
 
         $matchCondition = '( MATCH (`data`,`properties`) AGAINST (' . $db->quote($query) . ' IN BOOLEAN MODE) )';
-        $conditionParts[] = '(' . $matchCondition . " AND type != 'folder') ";
+        $conditionParts[] = '(' . $matchCondition . " AND `type` != 'folder') ";
 
         $queryCondition = implode(' AND ', $conditionParts);
 
@@ -593,7 +582,7 @@ class SearchController extends AdminController
      *
      * @return JsonResponse
      */
-    public function quicksearchByIdAction(Request $request, Config $config)
+    public function quicksearchByIdAction(Request $request, Config $config): JsonResponse
     {
         $type = $request->get('type');
         $id = $request->get('id');
@@ -639,12 +628,7 @@ class SearchController extends AdminController
         return $this->adminJson($data);
     }
 
-    /**
-     * @param string $path
-     *
-     * @return string
-     */
-    protected function shortenPath($path)
+    protected function shortenPath(string $path): string
     {
         $parts = explode('/', trim($path, '/'));
         $count = count($parts) - 1;

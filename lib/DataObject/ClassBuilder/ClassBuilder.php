@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -109,16 +110,17 @@ class ClassBuilder implements ClassBuilderInterface
         $useParts = [];
 
         $cd .= ClassDefinition\Service::buildUseTraitsCode($useParts, $classDefinition->getUseTraits());
+        $cd .= ClassDefinition\Service::buildFieldConstantsCode(...$classDefinition->getFieldDefinitions());
 
         $cd .= $this->propertiesBuilder->buildProperties($classDefinition);
         $cd .= "\n\n";
 
         $cd .= '/**'."\n";
         $cd .= '* @param array $values'."\n";
-        $cd .= '* @return \\Pimcore\\Model\\DataObject\\'.ucfirst($classDefinition->getName())."\n";
+        $cd .= '* @return static'."\n";
         $cd .= '*/'."\n";
-        $cd .= 'public static function create($values = array()) {';
-        $cd .= "\n";
+        $cd .= 'public static function create(array $values = []): static'."\n";
+        $cd .= "{\n";
         $cd .= "\t".'$object = new static();'."\n";
         $cd .= "\t".'$object->setValues($values);'."\n";
         $cd .= "\t".'return $object;'."\n";

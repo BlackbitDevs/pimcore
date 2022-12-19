@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -17,8 +18,8 @@ namespace Pimcore\Tests\Model\DataObject;
 
 use Pimcore\Model\DataObject;
 use Pimcore\Model\Element\Service;
-use Pimcore\Tests\Test\ModelTestCase;
-use Pimcore\Tests\Util\TestHelper;
+use Pimcore\Tests\Support\Test\ModelTestCase;
+use Pimcore\Tests\Support\Util\TestHelper;
 
 /**
  * Class ObjectTest
@@ -205,7 +206,7 @@ class ObjectTest extends ModelTestCase
     }
 
     /**
-     * Verifies that when an object gets cloned, the o_* fields references get renewed
+     * Verifies that when an object gets cloned, the fields get copied properly
      */
     public function testCloning()
     {
@@ -217,6 +218,22 @@ class ObjectTest extends ModelTestCase
         $this->assertEquals(null, $clone->getId(), 'Setting ID on original object should have no impact on the cloned object');
 
         $otherClone = clone $object;
-        $this->assertEquals(123, $otherClone->getId(), 'Shallow clone should copy the o_* fields');
+        $this->assertEquals(123, $otherClone->getId(), 'Shallow clone should copy the fields');
+    }
+
+    /**
+     * Verifies that loading only Concrete object from Concrete::getById().
+     */
+    public function testConcreteLoading()
+    {
+        $concreteObject = TestHelper::createEmptyObject();
+        $loadedConcrete = DataObject\Concrete::getById($concreteObject->getId(), ['force' => true]);
+
+        $this->assertIsObject($loadedConcrete, 'Loaded Concrete should be an object.');
+
+        $nonConcreteObject = TestHelper::createObjectFolder();
+        $loadedNonConcrete = DataObject\Concrete::getById($nonConcreteObject->getId(), ['force' => true]);
+
+        $this->assertNull($loadedNonConcrete, 'Loaded Concrete should be null.');
     }
 }

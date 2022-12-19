@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -44,7 +45,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function emailLogsAction(Request $request)
+    public function emailLogsAction(Request $request): JsonResponse
     {
         if (!$this->getAdminUser()->isAllowed('emails') && !$this->getAdminUser()->isAllowed('gdpr_data_extractor')) {
             throw new \Exception("Permission denied, user needs 'emails' permission.");
@@ -54,8 +55,8 @@ class EmailController extends AdminController
         if ($request->get('documentId')) {
             $list->setCondition('documentId = ' . (int)$request->get('documentId'));
         }
-        $list->setLimit($request->get('limit'));
-        $list->setOffset($request->get('start'));
+        $list->setLimit((int)$request->get('limit', 50));
+        $list->setOffset((int)$request->get('start', 0));
         $list->setOrderKey('sentDate');
 
         if ($request->get('filter')) {
@@ -119,7 +120,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function showEmailLogAction(Request $request, ?Profiler $profiler)
+    public function showEmailLogAction(Request $request, ?Profiler $profiler): JsonResponse|Response
     {
         if ($profiler) {
             $profiler->disable();
@@ -144,7 +145,7 @@ class EmailController extends AdminController
             ]);
         } elseif ($type === 'params') {
             try {
-                $params = $this->decodeJson($emailLog->getParams());
+                $params = $emailLog->getParams();
             } catch (\Exception $e) {
                 Logger::warning('Could not decode JSON param string');
                 $params = [];
@@ -165,9 +166,9 @@ class EmailController extends AdminController
 
     /**
      * @param array $data
-     * @param array $fullEntry
+     * @param array|null $fullEntry
      */
-    protected function enhanceLoggingData(&$data, &$fullEntry = null)
+    protected function enhanceLoggingData(array &$data, array &$fullEntry = null)
     {
         if (!empty($data['objectClass'])) {
             $class = '\\' . ltrim($data['objectClass'], '\\');
@@ -256,7 +257,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function deleteEmailLogAction(Request $request)
+    public function deleteEmailLogAction(Request $request): JsonResponse
     {
         if (!$this->getAdminUser()->isAllowed('emails')) {
             throw $this->createAccessDeniedHttpException("Permission denied, user needs 'emails' permission.");
@@ -283,7 +284,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function resendEmailAction(Request $request)
+    public function resendEmailAction(Request $request): JsonResponse
     {
         if (!$this->getAdminUser()->isAllowed('emails')) {
             throw $this->createAccessDeniedHttpException("Permission denied, user needs 'emails' permission.");
@@ -339,7 +340,7 @@ class EmailController extends AdminController
 
             // re-add params
             try {
-                $params = $this->decodeJson($emailLog->getParams());
+                $params = $emailLog->getParams();
             } catch (\Exception $e) {
                 Logger::warning('Could not decode JSON param string');
                 $params = [];
@@ -380,7 +381,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function sendTestEmailAction(Request $request)
+    public function sendTestEmailAction(Request $request): JsonResponse
     {
         if (!$this->getAdminUser()->isAllowed('emails')) {
             throw new \Exception("Permission denied, user needs 'emails' permission.");
@@ -448,7 +449,7 @@ class EmailController extends AdminController
      *
      * @throws \Exception
      */
-    public function blacklistAction(Request $request)
+    public function blacklistAction(Request $request): JsonResponse
     {
         if (!$this->getAdminUser()->isAllowed('emails')) {
             throw new \Exception("Permission denied, user needs 'emails' permission.");
@@ -490,8 +491,8 @@ class EmailController extends AdminController
 
             $list = new Tool\Email\Blacklist\Listing();
 
-            $list->setLimit($request->get('limit'));
-            $list->setOffset($request->get('start'));
+            $list->setLimit((int) $request->get('limit', 50));
+            $list->setOffset((int) $request->get('start', 0));
 
             $sortingSettings = \Pimcore\Bundle\AdminBundle\Helper\QueryParams::extractSortingSettings($request->query->all());
             if ($sortingSettings['orderKey']) {
@@ -523,12 +524,7 @@ class EmailController extends AdminController
         return $this->adminJson(['success' => false]);
     }
 
-    /**
-     * @param array $params
-     *
-     * @return array
-     */
-    protected function parseLoggingParamObject($params)
+    protected function parseLoggingParamObject(array $params): ?array
     {
         $data = null;
         if ($params['data']['type'] === 'object') {

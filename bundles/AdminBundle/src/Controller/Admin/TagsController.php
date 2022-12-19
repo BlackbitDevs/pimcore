@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -38,11 +39,11 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function addAction(Request $request)
+    public function addAction(Request $request): JsonResponse
     {
         try {
             $tag = new Tag();
-            $tag->setName(strip_tags($request->get('text')));
+            $tag->setName(strip_tags($request->get('text', '')));
             $tag->setParentId((int)$request->get('parentId'));
             $tag->save();
 
@@ -61,7 +62,7 @@ class TagsController extends AdminController
      *
      * @throws \Exception
      */
-    public function deleteAction(Request $request)
+    public function deleteAction(Request $request): JsonResponse
     {
         $tag = Tag::getById((int) $request->get('id'));
         if ($tag) {
@@ -82,7 +83,7 @@ class TagsController extends AdminController
      *
      * @throws \Exception
      */
-    public function updateAction(Request $request)
+    public function updateAction(Request $request): JsonResponse
     {
         $tag = Tag::getById((int) $request->get('id'));
         if ($tag) {
@@ -91,7 +92,7 @@ class TagsController extends AdminController
                 $tag->setParentId((int)$parentId);
             }
             if ($request->get('text')) {
-                $tag->setName(strip_tags($request->get('text')));
+                $tag->setName(strip_tags($request->get('text', '')));
             }
 
             $tag->save();
@@ -109,11 +110,11 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function treeGetChildrenByIdAction(Request $request)
+    public function treeGetChildrenByIdAction(Request $request): JsonResponse
     {
         $showSelection = $request->get('showSelection') == 'true';
         $assignmentCId = (int)$request->get('assignmentCId');
-        $assignmentCType = strip_tags($request->get('assignmentCType'));
+        $assignmentCType = strip_tags($request->get('assignmentCType', ''));
 
         $recursiveChildren = false;
         $assignedTagIds = [];
@@ -161,16 +162,7 @@ class TagsController extends AdminController
         return $this->adminJson($tags);
     }
 
-    /**
-     * @param Tag $tag
-     * @param bool $showSelection
-     * @param array $assignedTagIds
-     * @param bool $loadChildren
-     * @param bool $recursiveChildren
-     *
-     * @return array
-     */
-    protected function convertTagToArray(Tag $tag, $showSelection, $assignedTagIds, $loadChildren = false, $recursiveChildren = false)
+    protected function convertTagToArray(Tag $tag, bool $showSelection, array $assignedTagIds, bool $loadChildren = false, bool $recursiveChildren = false): array
     {
         $tagArray = [
             'id' => $tag->getId(),
@@ -206,10 +198,10 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function loadTagsForElementAction(Request $request)
+    public function loadTagsForElementAction(Request $request): JsonResponse
     {
         $assginmentCId = (int)$request->get('assignmentCId');
-        $assginmentCType = strip_tags($request->get('assignmentCType'));
+        $assginmentCType = strip_tags($request->get('assignmentCType', ''));
 
         $assignedTagArray = [];
         if ($assginmentCId && $assginmentCType) {
@@ -230,10 +222,10 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function addTagToElementAction(Request $request)
+    public function addTagToElementAction(Request $request): JsonResponse
     {
         $assginmentCId = (int)$request->get('assignmentElementId');
-        $assginmentCType = strip_tags($request->get('assignmentElementType'));
+        $assginmentCType = strip_tags($request->get('assignmentElementType', ''));
         $tagId = (int)$request->get('tagId');
 
         $tag = Tag::getById($tagId);
@@ -253,10 +245,10 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function removeTagFromElementAction(Request $request)
+    public function removeTagFromElementAction(Request $request): JsonResponse
     {
         $assginmentCId = (int)$request->get('assignmentElementId');
-        $assginmentCType = strip_tags($request->get('assignmentElementType'));
+        $assginmentCType = strip_tags($request->get('assignmentElementType', ''));
         $tagId = (int)$request->get('tagId');
 
         $tag = Tag::getById($tagId);
@@ -277,10 +269,10 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function getBatchAssignmentJobsAction(Request $request, EventDispatcherInterface $eventDispatcher)
+    public function getBatchAssignmentJobsAction(Request $request, EventDispatcherInterface $eventDispatcher): JsonResponse
     {
         $elementId = (int)$request->get('elementId');
-        $elementType = strip_tags($request->get('elementType'));
+        $elementType = strip_tags($request->get('elementType', ''));
 
         $idList = [];
         switch ($elementType) {
@@ -319,99 +311,93 @@ class TagsController extends AdminController
     }
 
     /**
-     * @param \Pimcore\Model\DataObject\AbstractObject $object
-     *
      * @return int[]
      */
-    private function getSubObjectIds(\Pimcore\Model\DataObject\AbstractObject $object, EventDispatcherInterface $eventDispatcher)
+    private function getSubObjectIds(\Pimcore\Model\DataObject\AbstractObject $object, EventDispatcherInterface $eventDispatcher): array
     {
-        $childsList = new \Pimcore\Model\DataObject\Listing();
-        $condition = 'o_path LIKE ?';
+        $childrenList = new \Pimcore\Model\DataObject\Listing();
+        $condition = '`path` LIKE ?';
         if (!$this->getAdminUser()->isAdmin()) {
             $userIds = $this->getAdminUser()->getRoles();
             $userIds[] = $this->getAdminUser()->getId();
             $condition .= ' AND (
-                (SELECT `view` FROM users_workspaces_object WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(o_path,o_key),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_object WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(`path`,`key`),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                     OR
-                (SELECT `view` FROM users_workspaces_object WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(o_path,o_key))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_object WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(`path`,`key`))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
              )';
         }
 
-        $childsList->setCondition($condition, $childsList->escapeLike($object->getRealFullPath()) . '/%');
+        $childrenList->setCondition($condition, $childrenList->escapeLike($object->getRealFullPath()) . '/%');
 
         $beforeListLoadEvent = new GenericEvent($this, [
-            'list' => $childsList,
+            'list' => $childrenList,
             'context' => [],
         ]);
         $eventDispatcher->dispatch($beforeListLoadEvent, AdminEvents::OBJECT_LIST_BEFORE_LIST_LOAD);
-        /** @var \Pimcore\Model\DataObject\Listing $childsList */
-        $childsList = $beforeListLoadEvent->getArgument('list');
+        /** @var \Pimcore\Model\DataObject\Listing $childrenList */
+        $childrenList = $beforeListLoadEvent->getArgument('list');
 
-        return $childsList->loadIdList();
+        return $childrenList->loadIdList();
     }
 
     /**
-     * @param \Pimcore\Model\Asset $asset
-     *
      * @return int[]
      */
-    private function getSubAssetIds(\Pimcore\Model\Asset $asset, EventDispatcherInterface $eventDispatcher)
+    private function getSubAssetIds(\Pimcore\Model\Asset $asset, EventDispatcherInterface $eventDispatcher): array
     {
-        $childsList = new \Pimcore\Model\Asset\Listing();
-        $condition = 'path LIKE ?';
+        $childrenList = new \Pimcore\Model\Asset\Listing();
+        $condition = '`path` LIKE ?';
         if (!$this->getAdminUser()->isAdmin()) {
             $userIds = $this->getAdminUser()->getRoles();
             $userIds[] = $this->getAdminUser()->getId();
             $condition .= ' AND (
-                (SELECT `view` FROM users_workspaces_asset WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(path,filename),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_asset WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(`path`,filename),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                     OR
-                (SELECT `view` FROM users_workspaces_asset WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(path,filename))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_asset WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(`path`,filename))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
             )';
         }
 
-        $childsList->setCondition($condition, $childsList->escapeLike($asset->getRealFullPath()) . '/%');
+        $childrenList->setCondition($condition, $childrenList->escapeLike($asset->getRealFullPath()) . '/%');
 
         $beforeListLoadEvent = new GenericEvent($this, [
-            'list' => $childsList,
+            'list' => $childrenList,
             'context' => [],
         ]);
         $eventDispatcher->dispatch($beforeListLoadEvent, AdminEvents::ASSET_LIST_BEFORE_LIST_LOAD);
-        /** @var \Pimcore\Model\Asset\Listing $childsList */
-        $childsList = $beforeListLoadEvent->getArgument('list');
+        /** @var \Pimcore\Model\Asset\Listing $childrenList */
+        $childrenList = $beforeListLoadEvent->getArgument('list');
 
-        return $childsList->loadIdList();
+        return $childrenList->loadIdList();
     }
 
     /**
-     * @param \Pimcore\Model\Document $document
-     *
      * @return int[]
      */
-    private function getSubDocumentIds(\Pimcore\Model\Document $document, EventDispatcherInterface $eventDispatcher)
+    private function getSubDocumentIds(\Pimcore\Model\Document $document, EventDispatcherInterface $eventDispatcher): array
     {
-        $childsList = new \Pimcore\Model\Document\Listing();
-        $condition = 'path LIKE ?';
+        $childrenList = new \Pimcore\Model\Document\Listing();
+        $condition = '`path` LIKE ?';
         if (!$this->getAdminUser()->isAdmin()) {
             $userIds = $this->getAdminUser()->getRoles();
             $userIds[] = $this->getAdminUser()->getId();
             $condition .= ' AND (
-                (SELECT `view` FROM users_workspaces_document WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(path,`key`),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_document WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(CONCAT(`path`,`key`),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                     OR
-                (SELECT `view` FROM users_workspaces_document WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(path,`key`))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                (SELECT `view` FROM users_workspaces_document WHERE userId IN (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(`path`,`key`))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
             )';
         }
 
-        $childsList->setCondition($condition, $childsList->escapeLike($document->getRealFullPath()) . '/%');
+        $childrenList->setCondition($condition, $childrenList->escapeLike($document->getRealFullPath()) . '/%');
 
         $beforeListLoadEvent = new GenericEvent($this, [
-            'list' => $childsList,
+            'list' => $childrenList,
             'context' => [],
         ]);
         $eventDispatcher->dispatch($beforeListLoadEvent, AdminEvents::DOCUMENT_LIST_BEFORE_LIST_LOAD);
-        /** @var \Pimcore\Model\Document\Listing $childsList */
-        $childsList = $beforeListLoadEvent->getArgument('list');
+        /** @var \Pimcore\Model\Document\Listing $childrenList */
+        $childrenList = $beforeListLoadEvent->getArgument('list');
 
-        return $childsList->loadIdList();
+        return $childrenList->loadIdList();
     }
 
     /**
@@ -421,9 +407,9 @@ class TagsController extends AdminController
      *
      * @return JsonResponse
      */
-    public function doBatchAssignmentAction(Request $request)
+    public function doBatchAssignmentAction(Request $request): JsonResponse
     {
-        $cType = strip_tags($request->get('elementType'));
+        $cType = strip_tags($request->get('elementType', ''));
         $assignedTags = json_decode($request->get('assignedTags'));
         $elementIds = json_decode($request->get('childrenIds'));
         $doCleanupTags = $request->get('removeAndApply') == 'true';

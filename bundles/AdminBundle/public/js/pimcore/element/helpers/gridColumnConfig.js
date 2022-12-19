@@ -207,7 +207,7 @@ pimcore.element.helpers.gridColumnConfig = {
             this.getSaveAsDialog();
         } else {
             pimcore.helpers.saveColumnConfig(this.object.id, this.classId, this.getGridConfig(), this.searchType, this.saveColumnConfigButton,
-                this.columnConfigurationSavedHandler.bind(this), this.settings, this.gridType, this.context);
+                this.columnConfigurationSavedHandler.bind(this), this.settings, this.gridType, this.context, this.filter);
         }
     },
 
@@ -251,7 +251,7 @@ pimcore.element.helpers.gridColumnConfig = {
             toolbarFilterInfo.setHidden(false);
         }
         toolbarFilterInfo.setHidden(filterData.length == 0);
-        clearFilterButton.setHidden(!toolbarFilterInfo.isVisible());
+        clearFilterButton.setHidden(filterData.length == 0);
     },
 
     updateGridHeaderContextMenu: function (grid) {
@@ -713,6 +713,7 @@ pimcore.element.helpers.gridColumnConfig = {
         settings = Ext.encode(settings);
         params["settings"] = settings;
         Ext.Ajax.request({
+            method: 'POST',
             url: this.exportPrepareUrl,
             params: params,
             success: function (response) {
@@ -820,13 +821,9 @@ pimcore.element.helpers.gridColumnConfig = {
         var condition = "";
         var searchQuery = this.searchField ? this.searchField.getValue() : "";
 
-        if (this.sqlFilter) {
-            condition = this.sqlEditor.getValue();
-        } else {
-            var filterData = this.store.getFilters().items;
-            if (filterData.length > 0) {
-                filters = this.store.getProxy().encodeFilters(filterData);
-            }
+        var filterData = this.store.getFilters().items;
+        if (filterData.length > 0) {
+            filters = this.store.getProxy().encodeFilters(filterData);
         }
 
         var params = {

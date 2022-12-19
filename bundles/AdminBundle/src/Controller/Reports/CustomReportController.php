@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -39,7 +40,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function treeAction(Request $request)
+    public function treeAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
         $reports = CustomReport\Config::getReportsList();
@@ -54,7 +55,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function portletReportListAction(Request $request)
+    public function portletReportListAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
         $reports = CustomReport\Config::getReportsList($this->getAdminUser());
@@ -69,7 +70,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function addAction(Request $request)
+    public function addAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
 
@@ -99,7 +100,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function deleteAction(Request $request)
+    public function deleteAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
 
@@ -123,7 +124,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function cloneAction(Request $request)
+    public function cloneAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
 
@@ -162,7 +163,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function getAction(Request $request)
+    public function getAction(Request $request): JsonResponse
     {
         $this->checkPermissionsHasOneOf(['reports_config', 'reports']);
 
@@ -183,7 +184,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function updateAction(Request $request)
+    public function updateAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
 
@@ -198,7 +199,7 @@ class CustomReportController extends ReportsControllerBase
         $data = $this->decodeJson($request->get('configuration'));
 
         if (!is_array($data['yAxis'])) {
-            $data['yAxis'] = strlen($data['yAxis']) ? [$data['yAxis']] : [];
+            $data['yAxis'] = strlen($data['yAxis'] ?? '') ? [$data['yAxis']] : [];
         }
 
         foreach ($data as $key => $value) {
@@ -220,7 +221,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function columnConfigAction(Request $request)
+    public function columnConfigAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports_config');
 
@@ -278,7 +279,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function getReportConfigAction(Request $request)
+    public function getReportConfigAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
 
@@ -312,12 +313,12 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function dataAction(Request $request)
+    public function dataAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
 
-        $offset = $request->get('start', 0);
-        $limit = $request->get('limit', 40);
+        $offset = (int) $request->get('start', 0);
+        $limit = (int) $request->get('limit', 40);
         $sortingSettings = \Pimcore\Bundle\AdminBundle\Helper\QueryParams::extractSortingSettings(array_merge($request->request->all(), $request->query->all()));
         $sort = null;
         $dir = null;
@@ -354,7 +355,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function drillDownOptionsAction(Request $request)
+    public function drillDownOptionsAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
 
@@ -369,7 +370,7 @@ class CustomReportController extends ReportsControllerBase
         $configuration = $config->getDataSourceConfig();
 
         $adapter = CustomReport\Config::getAdapter($configuration, $config);
-        $result = $adapter->getAvailableOptions($filters, $field, $drillDownFilters);
+        $result = $adapter->getAvailableOptions($filters ?? [], $field ?? '', $drillDownFilters ?? []);
 
         return $this->adminJson([
             'success' => true,
@@ -384,7 +385,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function chartAction(Request $request)
+    public function chartAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
 
@@ -417,7 +418,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return JsonResponse
      */
-    public function createCsvAction(Request $request)
+    public function createCsvAction(Request $request): JsonResponse
     {
         $this->checkPermission('reports');
 
@@ -493,7 +494,7 @@ class CustomReportController extends ReportsControllerBase
      *
      * @return BinaryFileResponse
      */
-    public function downloadCsvAction(Request $request)
+    public function downloadCsvAction(Request $request): BinaryFileResponse
     {
         $this->checkPermission('reports');
         if ($exportFile = $request->get('exportFile')) {

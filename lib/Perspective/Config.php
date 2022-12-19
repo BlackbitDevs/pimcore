@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -33,10 +34,7 @@ final class Config
 
     private static ?LocationAwareConfigRepository $locationAwareConfigRepository = null;
 
-    /**
-     * @return LocationAwareConfigRepository
-     */
-    private static function getRepository()
+    private static function getRepository(): LocationAwareConfigRepository
     {
         if (!self::$locationAwareConfigRepository) {
             $containerConfig = \Pimcore::getContainer()->getParameter('pimcore.config');
@@ -54,17 +52,11 @@ final class Config
         return self::$locationAwareConfigRepository;
     }
 
-    /**
-     * @return bool
-     */
     public static function isWriteable(): bool
     {
         return self::getRepository()->isWriteable();
     }
 
-    /**
-     * @return array
-     */
     public static function get(): array
     {
         $config = [];
@@ -92,11 +84,12 @@ final class Config
      *
      * @throws \Exception
      */
-    public static function save(array $data, ?array $deletedRecords)
+    public static function save(array $data, ?array $deletedRecords): void
     {
         $repository = self::getRepository();
 
         foreach ($data as $key => $value) {
+            $key = (string) $key;
             list($configKey, $dataSource) = $repository->loadConfigByKey($key);
             if ($repository->isWriteable($key, $dataSource) === true) {
                 unset($value['writeable']);
@@ -127,7 +120,7 @@ final class Config
     /**
      * @return array[]
      */
-    public static function getStandardPerspective()
+    public static function getStandardPerspective(): array
     {
         $elementTree = [
             [
@@ -257,13 +250,14 @@ final class Config
     }
 
     /**
-     * @internal
-     *
      * @param string $name
      *
      * @return array
+     *
+     *@internal
+     *
      */
-    protected static function getRuntimeElementTreeConfig($name)
+    protected static function getRuntimeElementTreeConfig(string $name): array
     {
         $masterConfig = self::get();
 
@@ -343,7 +337,7 @@ final class Config
         return $result;
     }
 
-    public static function getAvailablePerspectives($user)
+    public static function getAvailablePerspectives($user): array
     {
         $currentConfigName = null;
         $masterConfig = self::get();

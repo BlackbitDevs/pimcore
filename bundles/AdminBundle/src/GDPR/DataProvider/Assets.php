@@ -31,12 +31,9 @@ class Assets extends Elements implements DataProviderInterface
     /**
      * @var bool[]
      */
-    protected $exportIds = [];
+    protected array $exportIds = [];
 
-    /**
-     * @var array
-     */
-    protected $config = [];
+    protected ?array $config = [];
 
     public function __construct(array $config = null)
     {
@@ -66,7 +63,7 @@ class Assets extends Elements implements DataProviderInterface
      *
      * @return Response
      */
-    public function doExportData(Asset $asset)
+    public function doExportData(Asset $asset): Response
     {
         $this->exportIds = [];
         $this->exportIds[$asset->getId()] = true;
@@ -151,7 +148,7 @@ class Assets extends Elements implements DataProviderInterface
             foreach ($this->config['types'] as $type) {
                 $typesList[] = $db->quote($type);
             }
-            $typesPart = ' AND type IN (' . implode(',', $typesList) . ')';
+            $typesPart = ' AND `type` IN (' . implode(',', $typesList) . ')';
         }
 
         $conditionParts[] = '( maintype = "asset" ' . $typesPart . ')';

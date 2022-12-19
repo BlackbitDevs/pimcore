@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Pimcore
  *
@@ -30,13 +28,6 @@ use Pimcore\Model\DataObject\Objectbrick;
  */
 class GridHelperService
 {
-    /**
-     * @param string $filterJson
-     * @param ClassDefinition $class
-     * @param string $requestedLanguage
-     *
-     * @return array
-     */
     public function getFeatureAndSlugFilters(string $filterJson, ClassDefinition $class, string $requestedLanguage): array
     {
         $featureJoins = [];
@@ -107,7 +98,7 @@ class GridHelperService
 
                     $keyConfig = Model\DataObject\Classificationstore\KeyConfig::getById($keyid);
                     $type = $keyConfig->getType();
-                    $definition = json_decode($keyConfig->getDefinition());
+                    $definition = json_decode($keyConfig->getDefinition(), true);
                     $field = \Pimcore\Model\DataObject\Classificationstore\Service::getFieldDefinitionFromJson($definition, $type);
 
                     if ($field instanceof Model\DataObject\ClassDefinition\Data) {
@@ -121,7 +112,9 @@ class GridHelperService
                                     'name' => $mappedKey, ]
                             );
 
-                            $featureConditions[$mappedKey] = $featureCondition;
+                            if (!empty($featureCondition)) {
+                                $featureConditions[$mappedKey] = $featureCondition;
+                            }
                         }
                     }
                 } elseif (count($keyParts) > 1) {
@@ -169,14 +162,7 @@ class GridHelperService
         return $result;
     }
 
-    /**
-     *
-     * @param string $filterJson
-     * @param ClassDefinition $class
-     *
-     * @return string
-     */
-    public function getFilterCondition($filterJson, ClassDefinition $class, $tablePrefix = null): string
+    public function getFilterCondition(string $filterJson, ClassDefinition $class, $tablePrefix = null): string
     {
         $systemFields = Model\DataObject\Service::getSystemFields();
 
@@ -324,21 +310,25 @@ class GridHelperService
                         } else {
                             $conditionPartsFilters[] = $field->getFilterCondition($filter['value'] ?? null, $operator, ['brickPrefix' => ($tablePrefix ? $tablePrefix . '.' : null)]);
                         }
-                    } elseif (in_array('o_' . $filterField, $systemFields)) {
+                    } elseif (in_array($filterField, $systemFields)) {
                         // system field
                         if ($filterField == 'fullpath') {
-                            $conditionPartsFilters[] = 'concat(o_path, o_key) ' . $operator . ' ' . $db->quote('%' . $filter['value'] . '%');
+                            $conditionPartsFilters[] = 'concat(`path`, `key`) ' . $operator . ' ' . $db->quote('%' . $filter['value'] . '%');
                         } elseif ($filterField == 'key') {
-                            $conditionPartsFilters[] = 'o_key ' . $operator . ' ' . $db->quote('%' . $filter['value'] . '%');
+                            $conditionPartsFilters[] = '`key` ' . $operator . ' ' . $db->quote('%' . $filter['value'] . '%');
                         } elseif ($filterField == 'id') {
                             $conditionPartsFilters[] = 'oo_id ' . $operator . ' ' . $db->quote($filter['value']);
                         } else {
-                            $filterField = $db->quoteIdentifier('o_' . $filterField);
+                            $filterField = $db->quoteIdentifier($filterField);
                             if ($filter['type'] == 'date' && $operator == '=') {
                                 //if the equal operator is chosen with the date type, condition has to be changed
                                 $maxTime = $filter['value'] + (86400 - 1); //specifies the top point of the range used in the condition
                                 $conditionPartsFilters[] = $filterField . ' BETWEEN ' . $db->quote($filter['value']) . ' AND ' . $db->quote($maxTime);
                             } else {
+                                // @see \Pimcore\Model\DataObject\ClassDefinition\Data\Checkbox::getFilterConditionExt()
+                                if ($filter['type'] === 'boolean') {
+                                    $filterField = 'IFNULL(' . $filterField . ', 0)';
+                                }
                                 $conditionPartsFilters[] = $filterField . ' ' . $operator . ' ' . $db->quote($filter['value']);
                             }
                         }
@@ -356,11 +346,6 @@ class GridHelperService
         return $conditionFilters;
     }
 
-    /**
-     * @param array $fields
-     *
-     * @return array
-     */
     protected function extractBricks(array $fields): array
     {
         $bricks = [];
@@ -396,7 +381,7 @@ class GridHelperService
      * @param ClassDefinition $class
      * @param array $featureAndSlugFilters
      */
-    public function addGridFeatureJoins(DataObject\Listing\Concrete $list, array $featureJoins, ClassDefinition $class, array $featureAndSlugFilters)
+    public function addGridFeatureJoins(DataObject\Listing\Concrete $list, array $featureJoins, ClassDefinition $class, array $featureAndSlugFilters): void
     {
         if ($featureJoins) {
             $me = $list;
@@ -426,7 +411,7 @@ class GridHelperService
                         'object_classificationstore_data_' . $class->getId(),
                         $mappedKey,
                         '('
-                        . $mappedKey . '.o_id = ' . $table . '.o_id'
+                        . $mappedKey . '.id = ' . $table . '.id'
                         . ' and ' . $mappedKey . '.fieldname = ' . $db->quote($fieldname)
                         . ' and ' . $mappedKey . '.groupId=' . $featureJoin['groupId']
                         . ' and ' . $mappedKey . '.keyId=' . $featureJoin['keyId']
@@ -451,7 +436,7 @@ class GridHelperService
      * @param array $slugJoins
      * @param array $featureAndSlugFilters
      */
-    public function addSlugJoins(DataObject\Listing\Concrete $list, array $slugJoins, array $featureAndSlugFilters)
+    public function addSlugJoins(DataObject\Listing\Concrete $list, array $slugJoins, array $featureAndSlugFilters): void
     {
         if ($slugJoins) {
             $me = $list;
@@ -478,7 +463,7 @@ class GridHelperService
                         DataObject\Data\UrlSlug::TABLE_NAME,
                         $mappedKey,
                         '('
-                        . $mappedKey . '.objectId = ' . $table . '.o_id'
+                        . $mappedKey . '.objectId = ' . $table . '.id'
                         . ' and ' . $mappedKey . '.fieldname = ' . $db->quote($fieldname)
                         . ')'
                     );
@@ -504,17 +489,17 @@ class GridHelperService
         $list = new $listClass();
 
         $colMappings = [
-            'key' => 'o_key',
-            'filename' => 'o_key',
+            'key' => 'key',
+            'filename' => 'key',
             'id' => 'oo_id',
-            'published' => 'o_published',
-            'modificationDate' => 'o_modificationDate',
-            'creationDate' => 'o_creationDate',
+            'published' => 'published',
+            'modificationDate' => 'modificationDate',
+            'creationDate' => 'creationDate',
         ];
 
         $start = 0;
         $limit = 20;
-        $orderKey = 'o_id';
+        $orderKey = 'id';
         $order = 'ASC';
 
         $fields = [];
@@ -543,7 +528,7 @@ class GridHelperService
                 if (array_key_exists($orderKey, $colMappings)) {
                     $orderKey = $colMappings[$orderKey];
                 } elseif ($orderKey === 'fullpath') {
-                    $orderKey = 'CAST(CONCAT(o_path, o_key) AS CHAR CHARACTER SET utf8) COLLATE utf8_general_ci';
+                    $orderKey = 'CAST(CONCAT(`path`, `key`) AS CHAR CHARACTER SET utf8) COLLATE utf8_general_ci';
                     $doNotQuote = true;
                 } elseif ($class->getFieldDefinition($orderKey) instanceof ClassDefinition\Data\QuantityValue) {
                     $orderKey = 'concat(' . $orderKey . '__unit, ' . $orderKey . '__value)';
@@ -578,20 +563,20 @@ class GridHelperService
         }
 
         if (isset($requestParams['only_direct_children']) && $requestParams['only_direct_children'] === 'true') {
-            $conditionFilters[] = 'o_parentId = ' . $folder->getId();
+            $conditionFilters[] = 'parentId = ' . $folder->getId();
         } else {
             $quotedPath = $list->quote($folder->getRealFullPath());
             $quotedWildcardPath = $list->quote($list->escapeLike(str_replace('//', '/', $folder->getRealFullPath() . '/')) . '%');
-            $conditionFilters[] = '(o_path = ' . $quotedPath . ' OR o_path LIKE ' . $quotedWildcardPath . ')';
+            $conditionFilters[] = '(`path` = ' . $quotedPath . ' OR `path` like ' . $quotedWildcardPath . ')';
         }
 
         if (!$adminUser->isAdmin()) {
             $userIds = $adminUser->getRoles();
             $userIds[] = $adminUser->getId();
             $conditionFilters[] = ' (
-                                                    (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(CONCAT(o_path,o_key),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                                                    (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(CONCAT(`path`,`key`),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                                                     OR
-                                                    (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(o_path,o_key))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                                                    (select list from users_workspaces_object where userId in (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(`path`,`key`))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                                                  )';
         }
 
@@ -681,7 +666,7 @@ class GridHelperService
         return $list;
     }
 
-    public function prepareAssetListingForGrid($allParams, $adminUser)
+    public function prepareAssetListingForGrid($allParams, $adminUser): Model\Asset\Listing
     {
         $db = \Pimcore\Db::get();
         $folder = Model\Asset::getById($allParams['folderId']);
@@ -703,7 +688,7 @@ class GridHelperService
         if ($sortingSettings['orderKey']) {
             $orderKey = explode('~', $sortingSettings['orderKey'])[0];
             if ($orderKey === 'fullpath') {
-                $orderKey = 'CAST(CONCAT(path,filename) AS CHAR CHARACTER SET utf8) COLLATE utf8_general_ci';
+                $orderKey = 'CAST(CONCAT(`path`,filename) AS CHAR CHARACTER SET utf8) COLLATE utf8_general_ci';
                 $orderKeyQuote = false;
             } elseif ($orderKey === 'filename') {
                 $orderKey = 'CAST(filename AS CHAR CHARACTER SET utf8) COLLATE utf8_general_ci';
@@ -782,7 +767,7 @@ class GridHelperService
 
                 if (isset($filterDef[1]) && $filterDef[1] == 'system') {
                     if ($filterField == 'fullpath') {
-                        $filterField = 'CONCAT(path,filename)';
+                        $filterField = 'CONCAT(`path`,filename)';
                     } else {
                         $filterField = $db->quoteIdentifier($filterField);
                     }
@@ -802,9 +787,9 @@ class GridHelperService
             $userIds = $adminUser->getRoles();
             $userIds[] = $adminUser->getId();
             $conditionFilters[] = ' (
-                                                    (select list from users_workspaces_asset where userId in (' . implode(',', $userIds) . ') and LOCATE(CONCAT(path, filename),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                                                    (select list from users_workspaces_asset where userId in (' . implode(',', $userIds) . ') and LOCATE(CONCAT(`path`, filename),cpath)=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                                                     OR
-                                                    (select list from users_workspaces_asset where userId in (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(path, filename))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
+                                                    (select list from users_workspaces_asset where userId in (' . implode(',', $userIds) . ') and LOCATE(cpath,CONCAT(`path`, filename))=1  ORDER BY LENGTH(cpath) DESC LIMIT 1)=1
                                                  )';
         }
 
@@ -835,12 +820,7 @@ class GridHelperService
         return $list;
     }
 
-    /**
-     * @param string $query
-     *
-     * @return string
-     */
-    protected function filterQueryParam(string $query)
+    protected function filterQueryParam(string $query): string
     {
         if ($query == '*') {
             $query = '';

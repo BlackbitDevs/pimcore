@@ -133,6 +133,22 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
             }
         );
 
+        this.specificPanel.add(
+            {
+                xtype: "combo",
+                fieldLabel: t("display_mode"),
+                name: "displayMode",
+                value: this.datax.displayMode ?? 'grid',
+                labelWidth: 140,
+                forceSelection: true,
+                width: 400,
+                store: [
+                    ['grid', t('display_mode_grid')],
+                    ['combo', t('display_mode_combo')],
+                ]
+            }
+        );
+
         this.fieldStore = new Ext.data.Store({
             proxy: {
                 type: 'ajax',
@@ -204,6 +220,13 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
             boxLabel: t("allow_to_create_new_object"),
             name: "allowToCreateNewObject",
             value: this.datax.allowToCreateNewObject
+        });
+
+        this.specificPanel.add({
+            xtype: "checkbox",
+            boxLabel: t("allow_to_clear_relation"),
+            name: "allowToClearRelation",
+            value: this.datax.allowToClearRelation ?? true
         });
 
         if(this.context == 'class') {
@@ -420,6 +443,7 @@ pimcore.object.classes.data.advancedManyToManyObjectRelation = Class.create(pimc
                     enableBatchEdit: source.datax.enableBatchEdit,
                     allowMultipleAssignments: source.datax.allowMultipleAssignments,
                     allowToCreateNewObject: source.datax.allowToCreateNewObject,
+                    allowToClearRelation: source.datax.allowToClearRelation,
                     optimizedAdminLoading: source.datax.optimizedAdminLoading,
                     pathFormatterClass: source.datax.pathFormatterClass,
                     sqlCondition: source.datax.sqlCondition,
