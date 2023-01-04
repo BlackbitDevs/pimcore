@@ -175,6 +175,13 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
                         boxLabel: t("allow_to_clear_relation"),
                         name: "allowToClearRelation",
                         value: this.datax.allowToClearRelation ?? true
+                    },
+                    {
+                        xtype: "textfield",
+                        name: "sqlCondition",
+                        width: 600,
+                        value: this.datax.sqlCondition,
+                        fieldLabel: t("filter_condition")+' (SQL)'
                     }
                 ]
             },
@@ -371,7 +378,8 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
                     documentsAllowed: source.datax.documentsAllowed,
                     documentTypes: source.datax.documentTypes,
                     pathFormatterClass: source.datax.pathFormatterClass,
-                    allowToClearRelation: source.datax.allowToClearRelation
+                    allowToClearRelation: source.datax.allowToClearRelation,
+                    sqlCondition: source.datax.sqlCondition,
                 });
         }
     }

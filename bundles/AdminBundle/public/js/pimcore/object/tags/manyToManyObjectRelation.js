@@ -487,24 +487,24 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
                 ]
             });
 
-        columns.push({
-            xtype: 'actioncolumn',
-            menuText: t('remove'),
-            width: 40,
-            hideable: false,
-            items: [
-                {
-                    tooltip: t('remove'),
-                    icon: "/bundles/pimcoreadmin/img/flat-color-icons/delete.svg",
-                    handler: function (grid, rowIndex) {
-                        let data = grid.getStore().getAt(rowIndex);
-                        pimcore.helpers.deleteConfirm(t('relation'), data.data.path, function () {
-                            grid.getStore().removeAt(rowIndex);
-                        }.bind(this));
-                    }.bind(this)
-                }
-            ]
-        });
+            columns.push({
+                xtype: 'actioncolumn',
+                menuText: t('remove'),
+                width: 40,
+                hideable: false,
+                items: [
+                    {
+                        tooltip: t('remove'),
+                        icon: "/bundles/pimcoreadmin/img/flat-color-icons/delete.svg",
+                        handler: function (grid, rowIndex) {
+                            let data = grid.getStore().getAt(rowIndex);
+                            pimcore.helpers.deleteConfirm(t('relation'), data.data.path, function () {
+                                grid.getStore().removeAt(rowIndex);
+                            }.bind(this));
+                        }.bind(this)
+                    }
+                ]
+            });
 
             this.component = Ext.create('Ext.grid.Panel', {
                 store: this.store,
@@ -615,23 +615,23 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
                             }
                         }.bind(this));
 
-                    this.cache = {};
+                        this.cache = {};
 
-                    if(toBeRequested.length) {
-                        this.requestNicePathData(toBeRequested);
-                        return true;
-                    }
+                        if (toBeRequested.length) {
+                            this.requestNicePathData(toBeRequested);
+                            return true;
+                        }
 
                         return false;
 
-                }.bind(this),
+                    }.bind(this),
 
-                onNodeOut: function () {
-                    this.cache = {};
-                }
-            });
-        }.bind(this));
-
+                    onNodeOut: function () {
+                        this.cache = {};
+                    }
+                });
+            }.bind(this));
+        }
 
         return this.component;
     },

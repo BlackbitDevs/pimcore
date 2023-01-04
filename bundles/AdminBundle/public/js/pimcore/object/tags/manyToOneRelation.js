@@ -17,6 +17,7 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
     type: "manyToOneRelation",
     dataChanged: false,
     dataObjectFolderAllowed: false,
+    cache: {},
 
     initialize: function (data, fieldConfig) {
 
@@ -114,7 +115,11 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
                     }
                 }.bind(this),
 
-                onNodeDrop: this.onNodeDrop.bind(this)
+                onNodeDrop: this.onNodeDrop.bind(this),
+
+                onNodeOut: function () {
+                    this.cache = {};
+                }
             });
 
             el.getEl().on("contextmenu", this.onContextMenu.bind(this));
@@ -294,6 +299,8 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
 
         data = data.records[0].data;
 
+        this.cache = {};
+
         if (this.dndAllowed(data)) {
             this.data.id = data.id;
             this.data.type = data.elementType;
@@ -380,6 +387,9 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
 
                 }
             }
+
+            allowedSpecific.sqlCondition = this.fieldConfig.sqlCondition;
+
             if(this.dataObjectFolderAllowed) {
                 allowedSubtypes.object.push("folder");
             }
@@ -462,6 +472,10 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
 
     dndAllowed: function (data) {
 
+        if (this.cache.hasOwnProperty(data.id)) {
+            return this.cache[data.id];
+        }
+
         var elementType = data.elementType;
         var i;
         var subType;
@@ -476,6 +490,28 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
                 var classname = data.className;
 
                 isAllowed = false;
+
+                if (this.fieldConfig.sqlCondition && data.id) {
+                    Ext.Ajax.request({
+                        url: Routing.generate('pimcore_admin_dataobject_dataobject_check_validity'),
+                        params: {
+                            data: [{ id: data.id }],
+                            currentObjectId: this.context.objectId,
+                            unsavedChanges: this.object.getSaveData().data,
+                            fieldDefinition: JSON.stringify(this.fieldConfig)
+                        },
+                        async: false,
+                        success: function (response) {
+                            var rdata = Ext.decode(response.responseText);
+                            if (rdata.valid) {
+                                isAllowed = rdata.valid;
+                                this.cache[data.id] = isAllowed;
+                            }
+                        }.bind(this)
+                    });
+                }
+
+
                 if (this.fieldConfig.classes != null && this.fieldConfig.classes.length > 0) {
                     for (i = 0; i < this.fieldConfig.classes.length; i++) {
                         if (this.fieldConfig.classes[i].classes == classname) {
