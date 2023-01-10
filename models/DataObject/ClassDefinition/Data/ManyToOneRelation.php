@@ -345,7 +345,7 @@ class ManyToOneRelation extends AbstractRelations implements QueryResourcePersis
         } elseif ($data instanceof Asset) {
             $allow = $this->allowAssetRelation($data);
         } elseif ($data instanceof DataObject\AbstractObject) {
-            $allow = $this->allowObjectRelation($data);
+            $allow = $this->allowObjectRelation($data, $params);
         } elseif (empty($data)) {
             $allow = true;
         } else {

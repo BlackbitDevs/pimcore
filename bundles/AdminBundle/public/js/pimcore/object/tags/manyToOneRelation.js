@@ -389,6 +389,7 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
             }
 
             allowedSpecific.sqlCondition = this.fieldConfig.sqlCondition;
+            allowedSpecific.unsavedChanges = this.object.getSaveData().data;
 
             if(this.dataObjectFolderAllowed) {
                 allowedSubtypes.object.push("folder");
@@ -495,7 +496,7 @@ pimcore.object.tags.manyToOneRelation = Class.create(pimcore.object.tags.abstrac
                     Ext.Ajax.request({
                         url: Routing.generate('pimcore_admin_dataobject_dataobject_check_validity'),
                         params: {
-                            data: [{ id: data.id }],
+                            data: JSON.stringify({ id: data.id, type: data.type }),
                             currentObjectId: this.context.objectId,
                             unsavedChanges: this.object.getSaveData().data,
                             fieldDefinition: JSON.stringify(this.fieldConfig)

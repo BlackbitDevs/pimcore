@@ -51,7 +51,11 @@ trait AllowObjectRelationTrait
         } elseif (count($allowedClasses) > 0) {
             $allowedClassnames = [];
             foreach ($allowedClasses as $c) {
-                $allowedClassnames[] = $c['classes'];
+                if (is_object($c['classes'])) {
+                    $allowedClassnames[] = $c['classes']->classes;
+                } else {
+                    $allowedClassnames[] = $c['classes'];
+                }
             }
             //check for allowed classes
             if ($object instanceof DataObject\Concrete) {

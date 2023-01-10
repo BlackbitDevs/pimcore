@@ -212,7 +212,7 @@ class SearchController extends AdminController
             if($context['objectId']) {
                 $object = DataObject\Concrete::getById($context['objectId']);
 
-                if ($object instanceof DataObject\Concrete && $allParams['unsavedChanges']) {
+                if ($object instanceof DataObject\Concrete && isset($allParams['unsavedChanges'])) {
                     $unsavedChanges = $this->decodeJson($allParams['unsavedChanges']);
                     foreach ($unsavedChanges as $key => $value) {
                         $fd = $object->getClass()->getFieldDefinition($key);
