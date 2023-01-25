@@ -52,7 +52,7 @@ Same in Twig:
 
 {# preferred alternative - let Pimcore create the whole image tag #}
 {# including high-res alternatives (srcset) or media queries, if configured #}
-{{ image.thumbnail('myThumbnailName').html }}
+{{ image.thumbnail('myThumbnailName').html|raw }}
 ```
 
 ## Explanation of the Transformations
