@@ -38,6 +38,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\Session\Attribute\AttributeBagInterface;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -195,19 +196,17 @@ class TranslationController extends AdminController
         }
 
         $this->extendTranslationQuery($joins, $list, $tableName, $filters);
-        $list->load();
 
         $translations = [];
         $translationObjects = $list->getTranslations();
 
         // fill with one dummy translation if the store is empty
         if (empty($translationObjects)) {
+            $t = new Translation();
             if ($admin) {
-                $t = new Translation();
                 $t->setDomain(Translation::DOMAIN_ADMIN);
                 $languages = Tool\Admin::getLanguages();
             } else {
-                $t = new Translation();
                 $languages = $this->getAdminUser()->getAllowedLanguagesForViewingWebsiteTranslations();
             }
 
@@ -248,36 +247,40 @@ class TranslationController extends AdminController
 
         //remove invalid languages
         foreach ($columns as $key => $column) {
-            if (strtolower(trim($column)) != 'key' && !in_array($column, $languages)) {
+            if (strtolower(trim($column)) !== 'key' && !in_array($column, $languages)) {
                 unset($columns[$key]);
             }
         }
         $columns = array_values($columns);
 
-        $headerRow = [];
-        foreach ($columns as $key => $value) {
-            $headerRow[] = '"' . $value . '"';
-        }
-        $csv = implode(';', $headerRow) . "\r\n";
-
-        foreach ($translations as $t) {
-            $tempRow = [];
-            foreach ($columns as $key) {
-                $value = $t[$key] ?? null;
-                //clean value of evil stuff such as " and linebreaks
-                if (is_string($value)) {
-                    $value = Tool\Text::removeLineBreaks($value);
-                    $value = str_replace('"', '&quot;', $value);
-
-                    $tempRow[$key] = '"' . $value . '"';
-                } else {
-                    $tempRow[$key] = $value;
-                }
+        $response = new StreamedResponse(function() use ($columns, $translations) {
+            $headerRow = [];
+            foreach ($columns as $value) {
+                $headerRow[] = '"'.$value.'"';
             }
-            $csv .= implode(';', $tempRow) . "\r\n";
-        }
+            echo "\xEF\xBB\xBF" .implode(';', $headerRow)."\r\n";
 
-        $response = new Response("\xEF\xBB\xBF" . $csv);
+            foreach ($translations as $index => $t) {
+                if ($index % 1000 === 0) {
+                    ob_flush();
+                    flush();
+                }
+                $tempRow = [];
+                foreach ($columns as $key) {
+                    $value = $t[$key] ?? null;
+                    //clean value of evil stuff such as " and linebreaks
+                    if (is_string($value)) {
+                        $value = Tool\Text::removeLineBreaks($value);
+                        $value = str_replace('"', '&quot;', $value);
+
+                        $tempRow[$key] = '"'.$value.'"';
+                    } else {
+                        $tempRow[$key] = $value;
+                    }
+                }
+                echo implode(';', $tempRow)."\r\n";
+            }
+        });
         $response->headers->set('Content-Encoding', 'UTF-8');
         $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
         $response->headers->set('Content-Disposition', 'attachment; filename="export_' . $domain . '_translations.csv"');
