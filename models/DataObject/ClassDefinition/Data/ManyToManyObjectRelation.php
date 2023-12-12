@@ -73,6 +73,11 @@ class ManyToManyObjectRelation extends AbstractRelations implements QueryResourc
 
     /**
      * @internal
+     */
+    public bool $allowDirectEdit = false;
+
+    /**
+     * @internal
      *
      */
     public array $visibleFieldDefinitions = [];
@@ -481,7 +486,10 @@ class ManyToManyObjectRelation extends AbstractRelations implements QueryResourc
                 $this->visibleFieldDefinitions[$field]['name'] = $fd->getName();
                 $this->visibleFieldDefinitions[$field]['title'] = $fd->getTitle();
                 $this->visibleFieldDefinitions[$field]['fieldtype'] = $fd->getFieldType();
-                $this->visibleFieldDefinitions[$field]['noteditable'] = true;
+
+                if(!$this->isAllowDirectEdit()) {
+                    $this->visibleFieldDefinitions[$field]['noteditable'] = true;
+                }
 
                 if (
                     $fd instanceof DataObject\ClassDefinition\Data\Select
@@ -705,6 +713,16 @@ class ManyToManyObjectRelation extends AbstractRelations implements QueryResourc
     public function setEnableTextSelection(bool $enableTextSelection): void
     {
         $this->enableTextSelection = $enableTextSelection;
+    }
+
+    public function isAllowDirectEdit(): bool
+    {
+        return $this->allowDirectEdit;
+    }
+
+    public function setAllowDirectEdit(bool $allowDirectEdit): void
+    {
+        $this->allowDirectEdit = $allowDirectEdit;
     }
 
     public function isFilterable(): bool
