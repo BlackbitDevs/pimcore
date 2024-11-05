@@ -56,6 +56,7 @@ class RedirectHandlerTest extends TestCase
         $request->attributes->set(Pimcore\Http\Request\Resolver\SiteResolver::ATTRIBUTE_SITE, 1);
 
         $site = new Pimcore\Model\Site();
+        $site->save();
         $siteResolver->setSite($request, $site);
 
         $redirect = new Pimcore\Bundle\SeoBundle\Model\Redirect();
@@ -74,6 +75,9 @@ class RedirectHandlerTest extends TestCase
         $this->assertEquals('/target', $response->headers->get('Location'));
 
         $request = Request::create('http://example.org/source', 'GET');
+        $otherSite = new Pimcore\Model\Site();
+        $otherSite->save();
+        $siteResolver->setSite($request, $otherSite);
         $response = $redirectHandler->checkForRedirect($request);
         $this->assertNull($response, 'Redirected although source site does not match');
     }
