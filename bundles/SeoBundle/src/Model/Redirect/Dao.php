@@ -75,7 +75,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         $sql .= ' ORDER BY `priority` DESC';
-        codecept_debug($sql);
+
         $data = $this->db->fetchAssociative($sql, [
             'sourcePath' => $partResolver->getRequestUriPart(Redirect::TYPE_PATH),
             'sourcePathQuery' => $partResolver->getRequestUriPart(Redirect::TYPE_PATH_QUERY),
