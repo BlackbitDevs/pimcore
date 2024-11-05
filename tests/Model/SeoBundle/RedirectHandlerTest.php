@@ -46,7 +46,7 @@ class RedirectHandlerTest extends TestCase
 
         $request = Request::create('http://example.org/other_source', 'GET');
         $response = $redirectHandler->checkForRedirect($request);
-        $this->assertFalse($response->isRedirect(), 'Redirected although path did not match');
+        $this->assertNull($response, 'Redirected although path did not match');
     }
 
     public function testRedirectWithSourceSite(): void
@@ -75,6 +75,6 @@ class RedirectHandlerTest extends TestCase
 
         $request = Request::create('http://example.org/source', 'GET');
         $response = $redirectHandler->checkForRedirect($request);
-        $this->assertFalse($response->isRedirect(), 'Redirected although source site does not match');
+        $this->assertNull($response, 'Redirected although source site does not match');
     }
 }
