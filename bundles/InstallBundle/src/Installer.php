@@ -481,9 +481,6 @@ class Installer
         }
 
         if (in_array('mark_migrations_as_done', $stepsToRun)) {
-            $this->dispatchStepEvent('install_classes');
-            $this->installClasses();
-
             $this->dispatchStepEvent('migrations');
             $this->markMigrationsAsDone();
         }
@@ -674,7 +671,7 @@ class Installer
             $mysqlInstallScript = file_get_contents(__DIR__ . '/../dump/install.sql');
 
             // remove comments in SQL script
-            $mysqlInstallScript = preg_replace("/\s*(?!<\")\/\*[^\*]+\*\/(?!\")\s*/", '', $mysqlInstallScript);
+            $mysqlInstallScript = preg_replace("/\s*(?!<\")\/\*(?![!+])[^\*]+\*\/(?!\")\s*/", '', $mysqlInstallScript);
 
             // get every command as single part
             $mysqlInstallScripts = explode(';', $mysqlInstallScript);
@@ -771,7 +768,7 @@ class Installer
         $dumpFile = file_get_contents($file);
 
         // remove comments in SQL script
-        $dumpFile = preg_replace("/\s*(?!<\")\/\*[^\*]+\*\/(?!\")\s*/", '', $dumpFile);
+        $dumpFile = preg_replace("/\s*(?!<\")\/\*(?![!+])[^\*]+\*\/(?!\")\s*/", '', $dumpFile);
 
         if (str_contains($file, 'atomic')) {
             $db->executeStatement($dumpFile);
