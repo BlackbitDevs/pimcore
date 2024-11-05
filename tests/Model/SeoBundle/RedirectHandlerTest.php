@@ -38,8 +38,7 @@ class RedirectHandlerTest extends TestCase
         /** @var RedirectHandler $redirectHandler */
         $redirectHandler = Pimcore::getContainer()->get(RedirectHandler::class);
 
-        $request = new Request();
-        $request->server->set('REQUEST_URI', 'http://example.org/source');
+        $request = Request::create('http://example.org/source', 'GET');
         $response = $redirectHandler->checkForRedirect($request);
 
         $this->assertTrue($response->isRedirect(), 'Redirect because redirect source and request path match');
