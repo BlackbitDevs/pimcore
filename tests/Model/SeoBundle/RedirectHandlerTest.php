@@ -42,19 +42,17 @@ class RedirectHandlerTest extends TestCase
         $response = $redirectHandler->checkForRedirect($request);
 
         $this->assertTrue($response->isRedirect(), 'Redirect because redirect source and request path match');
-        $this->assertEquals('http://example.org/target', $response->headers->get('Location'), 'Redirect target should be /target');
+        $this->assertEquals('/target', $response->headers->get('Location'), 'Redirect target should be /target');
 
-        $request = new Request();
-        $request->server->set('REQUEST_URI', 'http://example.org/other_source');
+        $request = Request::create('http://example.org/other_source', 'GET');
         $response = $redirectHandler->checkForRedirect($request);
-        $this->assertFalse($response->isRedirect(), 'Redirected althouhg path did not match');
+        $this->assertFalse($response->isRedirect(), 'Redirected although path did not match');
     }
 
     public function testRedirectWithSourceSite(): void
     {
         $siteResolver = Pimcore::getContainer()->get(Pimcore\Http\Request\Resolver\SiteResolver::class);
-        $request = new Request();
-        $request->server->set('REQUEST_URI', 'http://example.org/source');
+        $request = Request::create('http://example.org/source', 'GET');
         $request->attributes->set(Pimcore\Http\Request\Resolver\SiteResolver::ATTRIBUTE_SITE, 1);
 
         $site = new Pimcore\Model\Site();
@@ -73,10 +71,9 @@ class RedirectHandlerTest extends TestCase
         $response = $redirectHandler->checkForRedirect($request);
 
         $this->assertTrue($response->isRedirect());
-        $this->assertEquals('http://example.org/target', $response->headers->get('Location'));
+        $this->assertEquals('/target', $response->headers->get('Location'));
 
-        $request = new Request();
-        $request->server->set('REQUEST_URI', 'http://example.org/source');
+        $request = Request::create('http://example.org/source', 'GET');
         $response = $redirectHandler->checkForRedirect($request);
         $this->assertFalse($response->isRedirect(), 'Redirected although source site does not match');
     }
