@@ -562,15 +562,11 @@ abstract class PageSnippet extends Model\Document
         if ($this instanceof Page && $this->getPrettyUrl()) {
             $url .= $this->getPrettyUrl();
         } else {
-            $url .= $this->getFullPath();
-        }
-
-        $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
-        if ($site instanceof Model\Site && $site->getMainDomain()) {
-            if ($this instanceof Page && $this->getPrettyUrl()) {
+            $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
+            if ($site instanceof Model\Site && $site->getMainDomain()) {
                 $url = $scheme . $site->getMainDomain() . $this->getPrettyUrl();
             } else {
-                $url = $scheme . $site->getMainDomain() . preg_replace('@^' . $site->getRootPath() . '/?@', '/', $this->getRealFullPath());
+                $url .= $this->getFullPath();
             }
         }
 
