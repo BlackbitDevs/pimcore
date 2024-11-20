@@ -4,18 +4,18 @@
 
 The block element is an iterating component which is really powerful.
 Basically a block is only a loop, but you can use other editables within this loop, so it's possible to repeat a set of 
-editables to create structured content (eg. a link list, or a image gallery).
+editables to create structured content (eg. a link list, or an image gallery).
 The items in the loop as well as their order can be defined by the editor with the block controls provided in the editmode. 
 
 ## Configuration
 
-| Name        | Type      | Description                                                                                                                  |
-|-------------|-----------|------------------------------------------------------------------------------------------------------------------------------|
-| `limit`     | integer   | Max. amount of iterations.                                                                                                   |
-| `reload`    | bool      | Reload editmode on add, move or remove (default=false)                                                                       |
-| `default`   | integer   | If block is empty, this specifies the iterations at startup.                                                                 |
-| `manual`    | bool      | Forces the manual mode, which enables a complete custom HTML implementation for blocks, for example using `<table>` elements |
-| `class`     | string    | A CSS class that is added to the surrounding container of this element in editmode                                           |
+| Name        | Type      | Description                                                                                                                                                                                                          |
+|-------------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `limit`     | integer   | Max. amount of iterations.                                                                                                                                                                                           |
+| `reload`    | bool      | Reload editmode on add, move or remove (default=false)                                                                                                                                                               |
+| `default`   | integer   | If block is empty, this specifies the iterations at startup.                                                                                                                                                         |
+| `manual`    | bool      | Forces the manual mode, which enables a complete custom HTML implementation for blocks, for example using `<table>` elements <br/> <b>Deprecated</b> Will be removed in Pimcore 12 use `pimcoremanualblock` instead. |
+| `class`     | string    | A CSS class that is added to the surrounding container of this element in editmode                                                                                                                                   |
 
 ## Methods
 
@@ -35,11 +35,18 @@ The items in the loop as well as their order can be defined by the editor with t
 | ![up and down](../../img/block_order.png) | Move Block up and down.                  |
 
 ## Basic Usage
+```twig
+{% pimcoreblock "contentblock" %}
+    <h2>{{ pimcore_input("subline") }}</h2>
+    {{ pimcore_wysiwyg("content") }}
+{% endpimcoreblock %}
+```
 
 ```twig
-{% for i in pimcore_block('contentblock').iterator %}
-    <h2>{{ pimcore_input('subline') }}</h2>
-    {{ pimcore_wysiwyg('content') }}
+<!-- Deprecated! Will be removed in Pimcore 12 -->
+{% for i in pimcore_block("contentblock").iterator %}
+    <h2>{{ pimcore_input("subline") }}</h2>
+    {{ pimcore_wysiwyg("content") }}
 {% endfor %}
 ```
 
@@ -54,13 +61,26 @@ And in the frontend of the application:
 ### Example for `getCurrent()`
 
 ```twig
-{% set myBlock = pimcore_block('contentblock', {'reload': true}) %}
+{% pimcoreblock "contentblock" reload(true) %}
+    {% if _block.current > 0 %}
+        Insert this line only after the first iteration<br />
+        <br />
+    {% endif %}
+
+    <h2>{{ pimcore_input("subline") }}</h2>
+{% endpimcoreblock %}
+```
+
+```twig
+<!-- Deprecated! Will be removed in Pimcore 12 -->
+{% set myBlock = pimcore_block("contentblock", {"reload": true}) %}
 {% for i in myBlock.iterator %}
     {% if myBlock.current > 0 %}
         Insert this line only after the first iteration<br />
         <br />
     {% endif %}
-    <h2>{{ pimcore_input('subline') }}</h2>
+
+    <h2>{{ pimcore_input("subline") }}</h2>
 {% endfor %}
 ```
 
@@ -69,10 +89,29 @@ And in the frontend of the application:
 
 ### Using Manual Mode
 
-The manual mode offers you the possibility to deal with block the way you like, this is for example useful with tables: 
+The manual block offers you the possibility to deal with block the way you like, this is for example useful with tables: 
 
 ```twig
-{% set block = pimcore_block('gridblock', {'manual' : true, 'limit' : 6}).start() %}
+{% pimcoremanualblock "contentblock" limit(6) %}
+    <table>
+     <tr>
+     {% blockiterate %}
+         <td customAttribute="{{ pimcore_input("myInput").getData() }}">
+            {% do _block.blockStart() %}
+                <div style="width:200px; height:200px;border:1px solid black;">
+                    {{ pimcore_input("myInput") }}
+                </div>
+            {% do _block.blockEnd() %}
+        </td>
+     {% endblockiterate %}
+     </tr>
+</table>
+{% endpimcoremanualblock %}
+```
+
+```twig
+<!-- Deprecated! Will be removed in Pimcore 12 -->
+{% set block = pimcore_block("gridblock", {"manual": true, "limit": 6}).start() %}
 <table>
     <tr>
         {% for b in block.iterator %}
@@ -96,6 +135,28 @@ The manual mode offers you the possibility to deal with block the way you like, 
 If you want to wrap buttons in a div or change the Position.
 
 ```twig
+{% pimcoremanualblock "gridblock" %}
+    <table>
+        <tr>
+        {% blockiterate %}
+            <td customAttribute="{{ pimcore_input("myInput").data }}">
+                {% do _block.blockStart(false) %}
+                <div style="background-color: #fc0; margin-bottom: 10px; padding: 5px; border: 1px solid black;">
+                    {% do _block.blockControls() %}
+                </div>
+                <div style="width:200px; height:200px;border:1px solid black;">
+                    {{ pimcore_input("myInput") }}
+                </div>
+                {% do _block.blockEnd() %}
+            </td>
+        {% endblockiterate %}
+        </tr>
+    </table>
+{% endpimcoremanualblock %}
+```
+
+```twig
+<!-- Deprecated! Will be removed in Pimcore 12 -->
 {% set block = pimcore_block("gridblock", {"manual": true}).start() %}
 <table>
     <tr>
@@ -121,11 +182,24 @@ If you want to wrap buttons in a div or change the Position.
 ### Using Manual Mode with additional css class for element in editmode
 
 ```twig
+{% pimcoremanualblock "gridblock" %}
+<div>
+    {% blockiterate %}
+        {% do _block.blockStart(true, false, "my-additional-class") %}
+        Add additional class 'my-addional-class' to editmode-div
+        {% do _block.blockEnd() %}
+    {% endblockiterate %}
+</div>
+{% endpimcoremanualblock %}
+```
+
+```twig
+<!-- Deprecated! Will be removed in Pimcore 12 -->
 {% set block = pimcore_block("gridblock", {"manual": true}).start() %}
 <div>
     {% for b in block.iterator %}
         {% do block.blockConstruct() %}
-            {% do block.blockStart(true, false, 'my-additional-class') %}
+            {% do block.blockStart(true, false, "my-additional-class") %}
                 Add additional class 'my-addional-class' to editmode-div
             {% do block.blockEnd() %}
         {% do block.blockDestruct() %}
@@ -140,7 +214,6 @@ If you want to wrap buttons in a div or change the Position.
 Bricks and structure refer to the CMS demo (content/default template).
 
 ```twig
-
 {# load document #}
 {% set document = pimcore_document_by_path('/en/More-Stuff/Developers-Corner/Galleries') %}
 
