@@ -957,3 +957,7 @@ parameters:
 			message: "#^If condition is always false\\.$#"
 			count: 1
 			path: lib/Image/Chromium.php
+		-
+			message: "#^Method Imagick::writeImageFile\\(\\) invoked with 2 parameters, 1 required\\.$#"
+			count: 1
+			path: lib/Image/Adapter/Imagick.php

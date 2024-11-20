@@ -8,8 +8,9 @@ which are not stored as an asset inside Pimcore.
 
 > **IMPORTANT**  
 > Use Imagick PECL extension for best results, GDlib is just a fallback with limited functionality
-> (only PNG, JPG, GIF) and less quality!
-> Using ImageMagick Pimcore supports hundreds of formats including: AI, EPS, TIFF, PNG, JPG, GIF, PSD, ...
+> (only PNG, JPG, GIF) and less quality! If Imagick is available it will be the default, otherwise falling back to GD.
+> Using ImageMagick Pimcore can support hundreds of formats including: AI, EPS, TIFF, PNG, JPG, GIF, PSD, etc.
+> Not all formats are allowed out of the box. To extend the list [see](./README.md#allowed-formats).
 
 To use the thumbnailing service of Pimcore, you have to create a transformation pipeline first. To do so, open
 _Settings_ > _Thumbnails_ and click on _Add Thumbnail_ to create a new configuration.
@@ -273,7 +274,7 @@ you can download them for free here: [Adobe ICC Profiles](https://www.adobe.com/
 or here: [ICC (color.org)](http://www.color.org/profiles.xalter).
 
 After downloading the profiles put them into your project folder or anywhere else on your sever
-(eg. `/usr/share/color/icc`). Then configure the path in the pimcore config file:
+(eg. `/usr/share/color/icc`). Then configure the path in the Pimcore config file:
 
 ```yaml
 pimcore:
@@ -290,7 +291,7 @@ pimcore:
 Pimcore auto-generates a thumbnail if requested but doesn't exist on the file system and is directly called via it's file path (not using any of
 the `getThumbnail()` methods).
 For example: Call `https://example.com/examples/panama/6644/image-thumb__6644__contentimages/img_0037.jpeg`
-(`/examples/panama/` is the path to the source asset, `6644` is the ID of the source asset, `contentimages` is the name of the thumbnail configuration, `img_0037.jpeg` the filename of the source asset) directly in your browser. Now pimcore checks
+(`/examples/panama/` is the path to the source asset, `6644` is the ID of the source asset, `contentimages` is the name of the thumbnail configuration, `img_0037.jpeg` the filename of the source asset) directly in your browser. Now Pimcore checks
 if the asset with the ID 6644 and the thumbnail with the key "contentimages" exists, if yes the thumbnail is
 generated on-the-fly and delivered to the client. When requesting the images again the image is directly served by
 the webserver (Apache, Nginx), because the file already exists (just the same way it works with the getThumbnail() methods).
@@ -328,6 +329,15 @@ $asset->getThumbnail("myConfig")->getPath(['deferredAllowed' => false]);
 This is a special functionality to allow embedding high resolution (ppi/dpi) images.
 The following is only necessary in special use-cases like Web-to-Print, in typical web-based cases, Pimcore
 automatically adds the `srcset` attribute to `<img>` and `<picture>` tags automatically, so no manual work is necessary.
+
+The high resolution scaling factor is limited to `5.0` eg. `@5x`. Float values are supported.
+If you need to scale an image more than that, you can use the `max_scaling_factor` option in the configuration.
+```yaml
+  pimcore:
+    assets:
+      thumbnails:
+        max_scaling_factor: 6.0
+```
 
 ### Use in the Thumbnail Configuration:
 
@@ -395,7 +405,7 @@ Pimcore will then dynamically generate the thumbnails accordingly.
 
 ## Media Queries in Thumbnail Configuration
 
-If your're using media queries in your thumbnail configuration pimcore automatically generates a `<picture>` tag when calling `$asset->getThumbnail("example")->getHtml()`.
+If your're using media queries in your thumbnail configuration Pimcore automatically generates a `<picture>` tag when calling `$asset->getThumbnail("example")->getHtml()`.
 But in some cases it is necessary to get single thumbnails for certain media queries out of the thumbnail object, which is described in the examples below.
 
 ```php
@@ -437,10 +447,11 @@ Images with an embedded clipping path (8BIM / Adobe profile meta data) are autom
 If you do not want to use thumbnail auto clipping, you can disable the support by adding the following config option:
 
 ```yml
-assets:
-    image:
-        thumbnails:
-            clip_auto_support: false
+pimcore:
+    assets:
+        image:
+            thumbnails:
+                clip_auto_support: false
 ```
 
 ### Note on using WebP with Imagick using delegates
@@ -497,3 +508,18 @@ pimcore:
             thumbnails:
                 auto_formats: null
 ```
+
+## Manually specify the used image processing adapter (Imagick or GD)
+It is possible to manually specify the used image processing adapter by Pimcore. 
+You can choose from `Imagick` or `GD`, the default is auto-detected, based on the availability of `imagick` PECL extension. 
+It is also possible to implement your own adapter, by implementing `Pimcore\Image\AdapterInterface`.
+
+To specify the used image adapter, please use the following service configuration: 
+
+```yaml
+services: 
+    Pimcore\Image\AdapterInterface:
+        alias: Pimcore\Image\Adapter\GD
+        public: true
+```
+Please be aware that the adapter service needs to be public. 
