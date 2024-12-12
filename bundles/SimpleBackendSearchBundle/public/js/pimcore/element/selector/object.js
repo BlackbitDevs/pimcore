@@ -154,6 +154,7 @@ pimcore.bundle.search.element.selector.object = Class.create(pimcore.bundle.sear
             typeAhead: true,
             forceSelection: true,
             selectOnFocus: true,
+            anyMatch: true,
             value: selectedClassValue,
             listeners: {
                 select: this.changeClass.bind(this)
