@@ -138,6 +138,8 @@ pimcore.bundle.search.element.selector.object = Class.create(pimcore.bundle.sear
             }
         }
 
+        filterClassStore.sort((class1, class2) => class1[1].localeCompare(class2[1]));
+
         var selectedClassValue = selectedClassStore.join(",");
         if(filterClassStore.length > 1) {
             filterClassStore.splice(0,0,[selectedClassValue, t("all_types")]);
