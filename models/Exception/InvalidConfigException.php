@@ -14,16 +14,10 @@ declare(strict_types=1);
  *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
-namespace Pimcore\Model\DataObject;
+namespace Pimcore\Model\Exception;
 
-interface SelectOptionsInterface
+use RuntimeException;
+
+class InvalidConfigException extends RuntimeException
 {
-    public function getLabel(): string;
-
-    /**
-     * @return string[]
-     */
-    public static function getValues(): array;
-
-    public static function tryFromNullable(?string $value): ?static;
 }

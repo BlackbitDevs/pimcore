@@ -140,7 +140,11 @@ class CalculatedValue extends Data implements QueryResourcePersistenceAwareInter
      */
     public function getDataForQueryResource(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
     {
-        return $data;
+        if ($data !== null) {
+            return (string) $data;
+        }
+
+        return null;
     }
 
     /**

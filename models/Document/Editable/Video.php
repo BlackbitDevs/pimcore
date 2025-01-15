@@ -22,6 +22,7 @@ use Pimcore\Bundle\CoreBundle\EventListener\Frontend\FullPageCacheListener;
 use Pimcore\Logger;
 use Pimcore\Model;
 use Pimcore\Model\Asset;
+use Pimcore\Model\Exception\InvalidConfigException;
 use Pimcore\Tool;
 
 /**
@@ -989,16 +990,24 @@ class Video extends Model\Document\Editable implements IdRewriterInterface
         return '<div id="pimcore_video_' . $this->getName() . '" class="pimcore_editable_video"><div class="pimcore_editable_video_empty" id="' . $uid . '" style="width: ' . $this->getWidthWithUnit() . '; height: ' . $this->getHeightWithUnit() . ';"></div></div>';
     }
 
+    /**
+     * @throws InvalidConfigException
+     */
     private function updateAllowedTypesFromConfig(array $config): void
     {
-        $this->allowedTypes = self::ALLOWED_TYPES;
-
-        if (
-            isset($config['allowedTypes']) === true
-            && empty($config['allowedTypes']) === false
-            && empty(array_diff($config['allowedTypes'], self::ALLOWED_TYPES))
-        ) {
+        if (isset($config['allowedTypes'])) {
+            if (!is_array($config['allowedTypes'])) {
+                throw new InvalidConfigException('Video config "allowedTypes" must be an array');
+            }
+            if (!$config['allowedTypes']) {
+                throw new InvalidConfigException('Video config "allowedTypes" must not be empty');
+            }
+            if (array_diff($config['allowedTypes'], self::ALLOWED_TYPES)) {
+                throw new InvalidConfigException('Unsupported types in video config "allowedTypes"');
+            }
             $this->allowedTypes = $config['allowedTypes'];
+        } else {
+            $this->allowedTypes = self::ALLOWED_TYPES;
         }
     }
 

@@ -45,7 +45,9 @@ class Service extends Model\Element\Service
      *
      * @var array
      */
-    public const GRID_SYSTEM_COLUMNS = ['preview', 'id', 'type', 'fullpath', 'filename', 'creationDate', 'modificationDate', 'size'];
+    public const GRID_SYSTEM_COLUMNS = [
+        'preview', 'id', 'type', 'fullpath', 'filename', 'creationDate', 'modificationDate', 'size', 'mimetype',
+    ];
 
     /**
      * @internal

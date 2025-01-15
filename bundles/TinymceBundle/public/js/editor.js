@@ -119,7 +119,7 @@ pimcore.bundle.tinymce.editor = Class.create({
             suffix: '.min',
             convert_urls: false,
             convert_unsafe_embeds: true,
-            extended_valid_elements: 'a[class|name|href|target|title|pimcore_id|pimcore_type],img[class|style|longdesc|usemap|src|border|alt=|title|hspace|vspace|width|height|align|pimcore_id|pimcore_type]',
+            extended_valid_elements: 'a[id|class|name|href|target|title|pimcore_id|pimcore_type],img[id|class|style|longdesc|usemap|src|border|alt=|title|hspace|vspace|width|height|align|pimcore_id|pimcore_type]',
             init_instance_callback: function (editor) {
                 // Do an initial check for character count based on the initial content before there is any user input
                 checkCharCount();
@@ -275,3 +275,4 @@ pimcore.bundle.tinymce.editor = Class.create({
 })
 
 new pimcore.bundle.tinymce.editor();
+console.info('TinyMCE is deprecated, please use Quill (pimcore/quill-bundle) instead');
