@@ -16,8 +16,6 @@ declare(strict_types=1);
 
 namespace Pimcore\Bundle\SimpleBackendSearchBundle\Command;
 
-use Blackbit\DataDirectorBundle\lib\Pim\Helper;
-use Blackbit\DataDirectorBundle\model\PimcoreDbRepository;
 use Exception;
 use Pimcore;
 use Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search;
