@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace Pimcore\Bundle\SimpleBackendSearchBundle\Command;
 
+use Blackbit\DataDirectorBundle\lib\Pim\Helper;
+use Blackbit\DataDirectorBundle\model\PimcoreDbRepository;
 use Exception;
 use Pimcore;
 use Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search;
@@ -46,62 +48,36 @@ class SearchBackendReindexCommand extends AbstractCommand
     {
         // clear all data
         $db = \Pimcore\Db::get();
-        $db->executeQuery('TRUNCATE `search_backend_data`;');
 
-        $elementsPerLoop = 100;
         $types = ['asset', 'document', 'object'];
 
         foreach ($types as $type) {
-            $baseClass = Service::getBaseClassNameForElement($type);
-            $listClassName = '\\Pimcore\\Model\\' . $baseClass . '\\Listing';
-            $list = new $listClassName();
-            if (method_exists($list, 'setUnpublished')) {
-                $list->setUnpublished(true);
-            }
+            $elementIds = array_column($db->fetchAllAssociative(
+                'SELECT elements.id
+                FROM `'.$type.'s` elements
+                LEFT JOIN search_backend_data ON elements.id=search_backend_data.id AND search_backend_data.mainType=?
+                WHERE (search_backend_data.id IS NULL OR search_backend_data.modificationDate < elements.modificationDate)',
+                [$type]
+            ), 'id');
+            $elementsTotal = count($elementIds);
 
-            if (method_exists($list, 'setObjectTypes')) {
-                $list->setObjectTypes([
-                    DataObject\AbstractObject::OBJECT_TYPE_OBJECT,
-                    DataObject\AbstractObject::OBJECT_TYPE_FOLDER,
-                    DataObject\AbstractObject::OBJECT_TYPE_VARIANT,
-                ]);
-            }
-
-            $elementsTotal = $list->getTotalCount();
-
-            for ($i = 0; $i < (ceil($elementsTotal / $elementsPerLoop)); $i++) {
-                $list->setLimit($elementsPerLoop);
-                $list->setOffset($i * $elementsPerLoop);
-
-                $this->output->writeln(
-                    'Processing ' .$type . ': ' . ($list->getOffset() + $elementsPerLoop) . '/' . $elementsTotal
-                );
-
-                $elements = $list->load();
-                foreach ($elements as $element) {
-                    try {
-                        //process page count, if not exists
-                        if (
-                            $element instanceof Asset\Document &&
-                            !$element->getCustomSetting('document_page_count') &&
-                            $element->processPageCount()
-                        ) {
-                            $this->saveAsset($element);
-                        }
-
-                        $searchEntry = Search\Backend\Data::getForElement($element);
-                        if ($searchEntry->getId() instanceof Search\Backend\Data\Id) {
-                            $searchEntry->setDataFromElement($element);
-                        } else {
-                            $searchEntry = new Search\Backend\Data($element);
-                        }
-
-                        $searchEntry->save();
-                    } catch (Exception $e) {
-                        Logger::err((string) $e);
-                    }
+            foreach ($elementIds as $i => $elementId) {
+                if ($i % 100 === 0) {
+                    \Pimcore::collectGarbage();
+                    Logger::info('Processing '.$type.': '.min($i + 100, count($elementIds)).'/'.$elementsTotal);
                 }
-                Pimcore::collectGarbage();
+
+                try {
+                    $element = Service::getElementById($type, $elementId);
+                    if (!$element instanceof Pimcore\Model\Element\ElementInterface) {
+                        continue;
+                    }
+                    $searchEntry = new Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search\Backend\Data();
+                    $searchEntry->setDataFromElement($element);
+                    $searchEntry->save();
+                } catch (\Throwable $e) {
+                    Logger::err((string)$e);
+                }
             }
         }
 
