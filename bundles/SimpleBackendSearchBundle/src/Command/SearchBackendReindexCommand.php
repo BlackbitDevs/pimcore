@@ -18,16 +18,15 @@ namespace Pimcore\Bundle\SimpleBackendSearchBundle\Command;
 
 use Exception;
 use Pimcore;
-use Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search;
 use Pimcore\Console\AbstractCommand;
 use Pimcore\Logger;
 use Pimcore\Model\Asset;
-use Pimcore\Model\DataObject;
 use Pimcore\Model\Element\Service;
 use Pimcore\Model\Version;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 /**
  * @internal
@@ -61,7 +60,7 @@ class SearchBackendReindexCommand extends AbstractCommand
 
             foreach ($elementIds as $i => $elementId) {
                 if ($i % 100 === 0) {
-                    \Pimcore::collectGarbage();
+                    Pimcore::collectGarbage();
                     Logger::info('Processing '.$type.': '.min($i + 100, count($elementIds)).'/'.$elementsTotal);
                 }
 
@@ -73,7 +72,7 @@ class SearchBackendReindexCommand extends AbstractCommand
                     $searchEntry = new Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search\Backend\Data();
                     $searchEntry->setDataFromElement($element);
                     $searchEntry->save();
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     Logger::err((string)$e);
                 }
             }
