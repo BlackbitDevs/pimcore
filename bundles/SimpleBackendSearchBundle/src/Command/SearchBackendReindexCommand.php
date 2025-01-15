@@ -49,17 +49,14 @@ class SearchBackendReindexCommand extends AbstractCommand
         $types = ['asset', 'document', 'object'];
 
         foreach ($types as $type) {
-            $elementIds = array_column(
-                $db->fetchAllAssociative(
-                    'SELECT elements.id
-                    FROM `'.$type.'s` elements
-                    LEFT JOIN search_backend_data ON elements.id=search_backend_data.id
-                        AND search_backend_data.mainType=?
-                    WHERE search_backend_data.id IS NULL
-                        OR search_backend_data.modificationDate < elements.modificationDate',
-                    [$type]
-                ),
-                'id'
+            $elementIds = $db->fetchFirstColumn(
+                'SELECT elements.id
+                FROM `'.$type.'s` elements
+                LEFT JOIN search_backend_data ON elements.id=search_backend_data.id
+                    AND search_backend_data.mainType=?
+                WHERE search_backend_data.id IS NULL
+                    OR search_backend_data.modificationDate < elements.modificationDate',
+                [$type]
             );
             $elementsTotal = count($elementIds);
 
