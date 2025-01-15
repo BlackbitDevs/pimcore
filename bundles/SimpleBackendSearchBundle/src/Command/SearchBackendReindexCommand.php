@@ -53,9 +53,10 @@ class SearchBackendReindexCommand extends AbstractCommand
                 $db->fetchAllAssociative(
                     'SELECT elements.id
                     FROM `'.$type.'s` elements
-                    LEFT JOIN search_backend_data ON elements.id=search_backend_data.id AND search_backend_data.mainType=?
+                    LEFT JOIN search_backend_data ON elements.id=search_backend_data.id
+                        AND search_backend_data.mainType=?
                     WHERE search_backend_data.id IS NULL
-                    OR search_backend_data.modificationDate < elements.modificationDate',
+                        OR search_backend_data.modificationDate < elements.modificationDate',
                     [$type]
                 ),
                 'id'
