@@ -73,6 +73,16 @@ class SearchBackendReindexCommand extends AbstractCommand
                     if (!$element instanceof Pimcore\Model\Element\ElementInterface) {
                         continue;
                     }
+
+                    //process page count, if not exists
+                    if (
+                        $element instanceof Asset\Document &&
+                        !$element->getCustomSetting('document_page_count') &&
+                        $element->processPageCount()
+                    ) {
+                        $this->saveAsset($element);
+                    }
+
                     $searchEntry = new Pimcore\Bundle\SimpleBackendSearchBundle\Model\Search\Backend\Data();
                     $searchEntry->setDataFromElement($element);
                     $searchEntry->save();
