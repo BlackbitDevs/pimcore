@@ -51,13 +51,21 @@ class SearchBackendReindexCommand extends AbstractCommand
         foreach ($types as $type) {
             $elementIds = array_column(
                 $db->fetchAllAssociative(
-                    'SELECT elements.id
-                    FROM `'.$type.'s` elements
+                    'WITH RECURSIVE elements AS (
+                        SELECT current.id, current.modificationDate, current.parentId
+                        FROM `'.$type.'s` current
+                        WHERE id=1
+                        UNION ALL
+                        SELECT descendants.id, GREATEST(elements.modificationDate, descendants.modificationDate) AS modificationDate, descendants.parentId
+                        FROM `'.$type.'s` descendants
+                        INNER JOIN elements ON descendants.parentId = elements.id
+                    )
+                    SELECT elements.id
+                    FROM elements
                     LEFT JOIN search_backend_data ON elements.id=search_backend_data.id
-                        AND search_backend_data.mainType=?
+                        AND search_backend_data.mainType=\''.$type.'\'
                     WHERE search_backend_data.id IS NULL
-                        OR search_backend_data.modificationDate < elements.modificationDate',
-                    [$type]
+                        OR search_backend_data.modificationDate < elements.modificationDate'
                 ),
                 'id'
             );
