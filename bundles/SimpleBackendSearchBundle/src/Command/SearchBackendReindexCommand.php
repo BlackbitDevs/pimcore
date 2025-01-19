@@ -55,7 +55,8 @@ class SearchBackendReindexCommand extends AbstractCommand
                     FROM `'.$type.'s` current
                     WHERE id=1
                     UNION ALL
-                    SELECT descendants.id, GREATEST(elements.modificationDate, descendants.modificationDate) AS modificationDate, descendants.parentId
+                    SELECT descendants.id, GREATEST(elements.modificationDate, descendants.modificationDate) AS modificationDate,
+                        descendants.parentId
                     FROM `'.$type.'s` descendants
                     INNER JOIN elements ON descendants.parentId = elements.id
                 )
