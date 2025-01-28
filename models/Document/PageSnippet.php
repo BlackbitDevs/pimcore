@@ -551,28 +551,38 @@ abstract class PageSnippet extends Model\Document
             }
         }
 
-        $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
         if (!$hostname) {
-            if ($site instanceof Model\Site && $site->getMainDomain()) {
-                $hostname = $site->getMainDomain();
-            } else {
-                $hostname = \Pimcore\Config::getSystemConfiguration('general')['domain'];
-                if (empty($hostname)) {
-                    if (!$hostname = \Pimcore\Tool::getHostname()) {
-                        throw new Exception('No hostname available');
-                    }
-                }
-            }
+            $hostname = $this->getHostname();
         }
 
         $url = $scheme . $hostname;
         if ($this instanceof Page && $this->getPrettyUrl()) {
             $url .= $this->getPrettyUrl();
         } else {
+            $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
             $url .= preg_replace('@^'.$site->getRootPath().'/?@', '/', $this->getRealFullPath());
         }
 
         return $url;
+    }
+
+    private function getHostname(): string {
+        $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
+        if ($site instanceof Model\Site && $site->getMainDomain()) {
+            return $site->getMainDomain();
+        }
+
+        $hostname = \Pimcore\Config::getSystemConfiguration('general')['domain'];
+        if($hostname) {
+            return $hostname;
+        }
+
+        $hostname = \Pimcore\Tool::getHostname();
+        if ($hostname) {
+            return $hostname;
+        }
+
+        throw new Exception('No hostname available');
     }
 
     /**
