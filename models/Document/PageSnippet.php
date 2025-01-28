@@ -551,11 +551,16 @@ abstract class PageSnippet extends Model\Document
             }
         }
 
+        $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
         if (!$hostname) {
-            $hostname = \Pimcore\Config::getSystemConfiguration('general')['domain'];
-            if (empty($hostname)) {
-                if (!$hostname = \Pimcore\Tool::getHostname()) {
-                    throw new Exception('No hostname available');
+            if ($site instanceof Model\Site && $site->getMainDomain()) {
+                $hostname = $site->getMainDomain();
+            } else {
+                $hostname = \Pimcore\Config::getSystemConfiguration('general')['domain'];
+                if (empty($hostname)) {
+                    if (!$hostname = \Pimcore\Tool::getHostname()) {
+                        throw new Exception('No hostname available');
+                    }
                 }
             }
         }
@@ -564,12 +569,7 @@ abstract class PageSnippet extends Model\Document
         if ($this instanceof Page && $this->getPrettyUrl()) {
             $url .= $this->getPrettyUrl();
         } else {
-            $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
-            if ($site instanceof Model\Site && $site->getMainDomain()) {
-                $url = $scheme . $site->getMainDomain() . $this->getPrettyUrl();
-            } else {
-                $url .= $this->getFullPath();
-            }
+            $url .= preg_replace('@^'.$site->getRootPath().'/?@', '/', $this->getRealFullPath());
         }
 
         return $url;
