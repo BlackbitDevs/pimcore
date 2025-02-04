@@ -566,14 +566,15 @@ abstract class PageSnippet extends Model\Document
         return $url;
     }
 
-    private function getHostname(): string {
+    private function getHostname(): string
+    {
         $site = \Pimcore\Tool\Frontend::getSiteForDocument($this);
         if ($site instanceof Model\Site && $site->getMainDomain()) {
             return $site->getMainDomain();
         }
 
         $hostname = \Pimcore\Config::getSystemConfiguration('general')['domain'];
-        if($hostname) {
+        if ($hostname) {
             return $hostname;
         }
 
