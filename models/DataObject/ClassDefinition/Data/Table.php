@@ -29,7 +29,9 @@ class Table extends Data implements ResourcePersistenceAwareInterface, QueryReso
     use DataObject\Traits\SimpleComparisonTrait;
     use DataObject\Traits\SimpleNormalizerTrait;
     use DataObject\Traits\DataHeightTrait;
-    use DataObject\Traits\DataWidthTrait;
+    use DataObject\Traits\DataWidthTrait{
+        setWidth as protected setWidthTrait;
+    }
 
     /**
      * @internal
@@ -71,6 +73,15 @@ class Table extends Data implements ResourcePersistenceAwareInterface, QueryReso
      *
      */
     public array $columnConfig = [];
+
+    /**
+     * @internal
+     *
+     */
+    public function setWidth(int|string|null $width): static
+    {
+        return $this->setWidthTrait($width ?: 320);
+    }
 
     public function getCols(): ?int
     {
@@ -413,7 +424,7 @@ class Table extends Data implements ResourcePersistenceAwareInterface, QueryReso
                 if (is_array($row)) {
                     foreach ($row as $cell) {
                         $html .= '<td>';
-                        $html .= htmlspecialchars($cell ?? '', ENT_QUOTES, 'UTF-8');
+                        $html .= htmlspecialchars((string) $cell, ENT_QUOTES, 'UTF-8');
                         $html .= '</td>';
                     }
                 }

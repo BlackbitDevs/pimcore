@@ -43,7 +43,7 @@ class Dao extends DataObject\Data\AbstractMetadata\Dao
             $data = $dataTemplate;
             $data['column'] = $column;
             $data['data'] = $this->model->$getter();
-            Helper::upsert($this->db, $table, $data, $this->getPrimaryKey($table));
+            Helper::upsert($this->db, $table, $data, [parent::UNIQUE_KEY_NAME]);
         }
     }
 
@@ -62,7 +62,7 @@ class Dao extends DataObject\Data\AbstractMetadata\Dao
             $this->model->setFieldname($fieldname);
             $columns = $this->model->getColumns();
             foreach ($dataRaw as $row) {
-                if (in_array($row['column'], $columns)) {
+                if (in_arrayi($row['column'], $columns)) {
                     $setter = 'set' . ucfirst($row['column']);
                     $this->model->$setter($row['data']);
                 }
