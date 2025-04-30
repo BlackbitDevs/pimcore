@@ -15,7 +15,6 @@
 
 namespace Pimcore\Model\DataObject\Concrete;
 
-use Pimcore\Db;
 use Pimcore\Db\Helper;
 use Pimcore\Logger;
 use Pimcore\Model;
@@ -63,7 +62,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
             LEFT JOIN tree_locks ON objects.id = tree_locks.id AND tree_locks.type = 'object'
                 WHERE objects.id = ?", [$id]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $data['published'] = (bool)$data['published'];
             $this->assignVariablesToModel($data);
             $this->getData();
@@ -133,7 +132,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
      */
     public function getData(): void
     {
-        if (!$data = $this->db->fetchAssociative('SELECT * FROM object_store_' . $this->model->getClassId() . ' WHERE oo_id = ?', [$this->model->getId()])) {
+        if (!$data = $this->db->fetchAssociative('SELECT * FROM object_store_' . $this->model->getClassId() . ' WHERE oo_id = ? FOR UPDATE', [$this->model->getId()])) {
             return;
         }
 
@@ -177,14 +176,13 @@ class Dao extends Model\DataObject\AbstractObject\Dao
      * Save changes to database, it's an good idea to use save() instead
      *
      */
-    public function update(bool $isUpdate = null): void
+    public function update(?bool $isUpdate = null): void
     {
         parent::update($isUpdate);
 
         // get fields which shouldn't be updated
         $fieldDefinitions = $this->model->getClass()->getFieldDefinitions();
         $untouchable = [];
-        $db = Db::get();
 
         foreach ($fieldDefinitions as $fieldName => $fd) {
             if ($fd instanceof LazyLoadingSupportInterface && $fd->getLazyLoading()) {
@@ -195,30 +193,12 @@ class Dao extends Model\DataObject\AbstractObject\Dao
             }
 
             if (!DataObject::isDirtyDetectionDisabled() && $fd->supportsDirtyDetection()) {
-                if ($this->model instanceof Model\Element\DirtyIndicatorInterface && !$this->model->isFieldDirty($fieldName)) {
+                if (!$this->model->isFieldDirty($fieldName)) {
                     if (!in_array($fieldName, $untouchable)) {
                         $untouchable[] = $fieldName;
                     }
                 }
             }
-        }
-
-        // empty relation table except the untouchable fields (eg. lazy loading fields)
-        if (count($untouchable) > 0) {
-            $untouchables = "'" . implode("','", $untouchable) . "'";
-            $condition = Helper::quoteInto($this->db, 'src_id = ? AND fieldname not in (' . $untouchables . ") AND ownertype = 'object'", $this->model->getId());
-        } else {
-            $condition = 'src_id = ' . $db->quote($this->model->getId()) . ' AND ownertype = "object"';
-        }
-
-        if (!DataObject::isDirtyDetectionDisabled()) {
-            $condition = '(' . $condition . ' AND ownerType != "localizedfield" AND ownerType != "fieldcollection")';
-        }
-
-        $dataExists = $this->db->fetchOne('SELECT `src_id` FROM `object_relations_'. $this->model->getClassId().'`
-        WHERE '.$condition .' LIMIT 1');
-        if ($dataExists) {
-            $this->db->executeStatement('DELETE FROM object_relations_' . $this->model->getClassId() . ' WHERE ' . $condition);
         }
 
         $inheritedValues = DataObject::doGetInheritedValues();
@@ -229,21 +209,18 @@ class Dao extends Model\DataObject\AbstractObject\Dao
         foreach ($fieldDefinitions as $fieldName => $fd) {
             $getter = 'get' . ucfirst($fieldName);
 
-            if ($fd instanceof CustomResourcePersistingInterface
-                && $fd instanceof DataObject\ClassDefinition\Data) {
+            if ($fd instanceof CustomResourcePersistingInterface) {
                 // for fieldtypes which have their own save algorithm eg. fieldcollections, relational data-types, ...
-                $saveParams = ['isUntouchable' => in_array($fd->getName(), $untouchable),
+                $saveParams = [
+                    'isUntouchable' => in_array($fd->getName(), $untouchable),
                     'isUpdate' => $isUpdate,
                     'context' => [
                         'containerType' => 'object',
                     ],
                     'owner' => $this->model,
                     'fieldname' => $fieldName,
-                ]
-                ;
-                if ($this->model instanceof Model\Element\DirtyIndicatorInterface) {
-                    $saveParams['newParent'] = $this->model->isFieldDirty('parentId');
-                }
+                ];
+                $saveParams['newParent'] = $this->model->isFieldDirty('parentId');
                 $fd->save($this->model, $saveParams);
             }
             if ($fd instanceof ResourcePersistenceAwareInterface) {
@@ -266,9 +243,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
                     $this->model->set($fieldName, $fd->getDataFromResource($insertData, $this->model, $fieldDefinitionParams));
                 }
 
-                if ($this->model instanceof Model\Element\DirtyIndicatorInterface) {
-                    $this->model->markFieldDirty($fieldName, false);
-                }
+                $this->model->markFieldDirty($fieldName, false);
             }
         }
         $tableName = 'object_store_' . $this->model->getClassId();
@@ -298,8 +273,7 @@ class Dao extends Model\DataObject\AbstractObject\Dao
         }
 
         foreach ($fieldDefinitions as $key => $fd) {
-            if ($fd instanceof QueryResourcePersistenceAwareInterface
-                && $fd instanceof DataObject\ClassDefinition\Data) {
+            if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                 //exclude untouchables if value is not an array - this means data has not been loaded
                 if (!in_array($key, $untouchable)) {
                     $method = 'get' . $key;

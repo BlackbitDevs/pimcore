@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace Pimcore\Model\DataObject\ClassDefinition\Data;
 
+use Exception;
+use Pimcore;
 use Pimcore\Model;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Service;
@@ -37,7 +39,7 @@ class User extends Model\DataObject\ClassDefinition\Data\Select
     {
         //loads select list options
         $options = $this->getOptions();
-        if (\Pimcore::inAdmin() || empty($options)) {
+        if (Pimcore::inAdmin() || empty($options)) {
             $this->configureOptions();
         }
 
@@ -50,12 +52,12 @@ class User extends Model\DataObject\ClassDefinition\Data\Select
      * @param null|Model\DataObject\Concrete $object
      *
      */
-    public function getDataFromResource(mixed $data, Concrete $object = null, array $params = []): ?string
+    public function getDataFromResource(mixed $data, ?Concrete $object = null, array $params = []): ?string
     {
         if (!empty($data)) {
             try {
                 $this->checkValidity($data, true, $params);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $data = null;
             }
         }
@@ -69,13 +71,13 @@ class User extends Model\DataObject\ClassDefinition\Data\Select
      * @param Model\DataObject\Concrete|null $object
      *
      */
-    public function getDataForResource(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
+    public function getDataForResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?string
     {
         $this->init();
         if (!empty($data)) {
             try {
                 $this->checkValidity($data, true, $params);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $data = null;
             }
         }
@@ -95,18 +97,16 @@ class User extends Model\DataObject\ClassDefinition\Data\Select
 
         $options = [];
         foreach ($users as $user) {
-            if ($user instanceof Model\User) {
-                $value = $user->getName();
-                $first = $user->getFirstname();
-                $last = $user->getLastname();
-                if (!empty($first) || !empty($last)) {
-                    $value .= ' (' . $first . ' ' . $last . ')';
-                }
-                $options[] = [
-                    'value' => $user->getId(),
-                    'key' => $value,
-                ];
+            $value = $user->getName();
+            $first = $user->getFirstname();
+            $last = $user->getLastname();
+            if (!empty($first) || !empty($last)) {
+                $value .= ' (' . $first . ' ' . $last . ')';
             }
+            $options[] = [
+                'value' => $user->getId(),
+                'key' => $value,
+            ];
         }
         $this->setOptions($options);
     }
@@ -134,7 +134,7 @@ class User extends Model\DataObject\ClassDefinition\Data\Select
     {
         $obj = parent::__set_state($data);
 
-        if (\Pimcore::inAdmin()) {
+        if (Pimcore::inAdmin()) {
             $obj->configureOptions();
         }
 

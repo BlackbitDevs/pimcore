@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Pimcore\Model\Element;
 
+use Exception;
 use Pimcore\Db;
 use Pimcore\Db\Helper;
 use Pimcore\Logger;
@@ -45,7 +46,7 @@ class PermissionChecker
                 if ($element instanceof Document) {
                     $type = 'document';
                 } else {
-                    throw new \Exception('type not supported');
+                    throw new Exception('type not supported');
                 }
             }
         }
@@ -134,7 +135,7 @@ class PermissionChecker
                             continue;
                         }
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Logger::warn('Unable to get permission '.$type.' for object '.$element->getId());
                 }
             }
@@ -199,7 +200,6 @@ class PermissionChecker
             if (!$user->getPermission($permissionKey)) {
                 // check roles
                 foreach ($user->getRoles() as $roleId) {
-                    /** @var User\UserRole $role */
                     $role = User\Role::getById($roleId);
                     if ($role->getPermission($permissionKey)) {
                         $entry = self::createDetail($user, $permissionKey, true, $role->getType(), $role->getName());

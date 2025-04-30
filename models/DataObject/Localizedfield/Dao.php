@@ -16,6 +16,7 @@
 namespace Pimcore\Model\DataObject\Localizedfield;
 
 use Doctrine\DBAL\Exception\TableNotFoundException;
+use Exception;
 use Pimcore\Db;
 use Pimcore\Db\Helper;
 use Pimcore\Logger;
@@ -77,7 +78,7 @@ class Dao extends Model\Dao\AbstractDao
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function save(array $params = []): void
     {
@@ -106,7 +107,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         if (!isset($params['owner'])) {
-            throw new \Exception('need owner from container implementation');
+            throw new Exception('need owner from container implementation');
         }
 
         $this->model->_setOwner($params['owner']);
@@ -184,8 +185,7 @@ class Dao extends Model\Dao\AbstractDao
                         $fd->save($this->model, $childParams);
                     }
                 }
-                if ($fd instanceof ResourcePersistenceAwareInterface
-                    && $fd instanceof DataObject\ClassDefinition\Data) {
+                if ($fd instanceof ResourcePersistenceAwareInterface) {
                     if (is_array($fd->getColumnType())) {
                         $fieldDefinitionParams = $this->getFieldDefinitionParams($fieldName, $language, ['isUpdate' => ($params['isUpdate'] ?? false)]);
                         $insertDataArray = $fd->getDataForResource(
@@ -220,7 +220,7 @@ class Dao extends Model\Dao\AbstractDao
                 // if the table doesn't exist -> create it! deferred creation for object bricks ...
                 try {
                     $this->db->rollBack();
-                } catch (\Exception $er) {
+                } catch (Exception $er) {
                     // PDO adapter throws exceptions if rollback fails
                     Logger::info((string) $er);
                 }
@@ -261,7 +261,7 @@ class Dao extends Model\Dao\AbstractDao
                     // by the following DDL
                     try {
                         $this->db->rollBack();
-                    } catch (\Exception $er) {
+                    } catch (Exception $er) {
                         // PDO adapter throws exceptions if rollback fails
                         Logger::info((string) $er);
                     }
@@ -296,8 +296,7 @@ class Dao extends Model\Dao\AbstractDao
                 }
 
                 foreach ($fieldDefinitions as $fd) {
-                    if ($fd instanceof QueryResourcePersistenceAwareInterface
-                        &&  $fd instanceof DataObject\ClassDefinition\Data) {
+                    if ($fd instanceof QueryResourcePersistenceAwareInterface) {
                         $key = $fd->getName();
 
                         // exclude untouchables if value is not an array - this means data has not been loaded
@@ -488,13 +487,13 @@ class Dao extends Model\Dao\AbstractDao
                     $fd->delete($object, $params);
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Logger::error((string) $e);
 
             if ($isUpdate && $e instanceof TableNotFoundException) {
                 try {
                     $this->db->rollBack();
-                } catch (\Exception $er) {
+                } catch (Exception $er) {
                     // PDO adapter throws exceptions if rollback fails
                     Logger::info((string) $er);
                 }
@@ -543,7 +542,7 @@ class Dao extends Model\Dao\AbstractDao
             $index = $context['index'] ?? $context['containerKey'] ?? null;
             $containerName = $context['fieldname'];
             if (!$context['containerType']) {
-                throw new \Exception('no container type set');
+                throw new Exception('no container type set');
             }
 
             $sql = Helper::quoteInto($this->db, 'src_id = ?', $objectId)." AND ownertype = 'localizedfield' AND "
@@ -552,13 +551,22 @@ class Dao extends Model\Dao\AbstractDao
                     '/'.$context['containerType'].'~'.$containerName.'/'.$index.'/%'
                 ).$dirtyLanguageCondition;
 
-            $this->db->executeStatement('DELETE FROM object_relations_'.$object->getClassId() . ' WHERE ' . $sql);
+            if ($deleteQuery || $context['containerType'] === 'fieldcollection') {
+                // Fieldcollection don't support delta updates, so we delete the relations and insert them later again
+                $this->db->executeStatement('DELETE FROM object_relations_'.$object->getClassId().' WHERE '.$sql);
+            }
 
             return true;
         }
 
-        $sql = 'ownertype = "localizedfield" AND ownername = "localizedfield" and src_id = '.$this->model->getObject()->getId().$dirtyLanguageCondition;
-        $this->db->executeStatement('DELETE FROM object_relations_'.$this->model->getObject()->getClassId() . ' WHERE ' . $sql);
+        if ($deleteQuery || $context['containerType'] === 'fieldcollection') {
+            // Fieldcollection don't support delta updates, so we delete the relations and insert them later again
+            $sql = 'ownertype = "localizedfield" AND ownername = "localizedfield" and src_id = '.$this->model->getObject(
+            )->getId().$dirtyLanguageCondition;
+            $this->db->executeStatement(
+                'DELETE FROM object_relations_'.$this->model->getObject()->getClassId().' WHERE '.$sql
+            );
+        }
 
         return false;
     }
@@ -616,7 +624,7 @@ class Dao extends Model\Dao\AbstractDao
         }
 
         if (!isset($params['owner'])) {
-            throw new \Exception('need owner from container implementation');
+            throw new Exception('need owner from container implementation');
         }
 
         $this->model->_setOwner($params['owner']);
@@ -638,9 +646,10 @@ class Dao extends Model\Dao\AbstractDao
                     }
                     $params['context']['object'] = $object;
 
-                    if ($fd instanceof LazyLoadingSupportInterface
-                        && $fd instanceof DataObject\ClassDefinition\Data
-                        && $fd->getLazyLoading()) {
+                    if (
+                        $fd instanceof LazyLoadingSupportInterface &&
+                        $fd->getLazyLoading()
+                    ) {
                         $lazyKey = $fd->getName() . DataObject\LazyLoadedFieldsInterface::LAZY_KEY_SEPARATOR . $row['language'];
                     } else {
                         $value = $fd->load($this->model, $params);
@@ -765,7 +774,7 @@ QUERY;
 
                 // execute
                 $this->db->executeQuery($viewQuery);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Logger::error((string) $e);
             }
         }
@@ -773,7 +782,7 @@ QUERY;
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function createUpdateTable(array $params = []): void
     {
@@ -826,12 +835,10 @@ QUERY;
             $container = $this->model->getClass();
         }
 
-        /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedFieldDefinition */
         $localizedFieldDefinition = $container->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
         if ($localizedFieldDefinition instanceof DataObject\ClassDefinition\Data\Localizedfields) {
             foreach ($localizedFieldDefinition->getFieldDefinitions(['suppressEnrichment' => true]) as $value) {
-                if ($value instanceof ResourcePersistenceAwareInterface
-                    && $value instanceof DataObject\ClassDefinition\Data) {
+                if ($value instanceof ResourcePersistenceAwareInterface) {
                     if ($value->getColumnType()) {
                         $key = $value->getName();
 
@@ -887,11 +894,11 @@ QUERY;
                     $containerKey = $context['containerKey'];
                     $container = DataObject\Objectbrick\Definition::getByKey($containerKey);
 
-                    /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
                     $localizedfields = $container->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
-                    $fieldDefinitions = $localizedfields->getFieldDefinitions(['suppressEnrichment' => true]);
+                    if ($localizedfields instanceof DataObject\ClassDefinition\Data\Localizedfields) {
+                        $fieldDefinitions = $localizedfields->getFieldDefinitions(['suppressEnrichment' => true]);
+                    }
                 } else {
-                    /** @var DataObject\ClassDefinition\Data\Localizedfields $localizedfields */
                     $localizedfields = $this->model->getClass()->getFieldDefinition('localizedfields', ['suppressEnrichment' => true]);
 
                     if ($localizedfields instanceof DataObject\ClassDefinition\Data\Localizedfields) {

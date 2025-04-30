@@ -17,12 +17,14 @@ declare(strict_types=1);
 namespace Pimcore\Model\DataObject\ClassDefinition\Data;
 
 use Carbon\Carbon;
+use DateTimeInterface;
 use Pimcore\Db;
 use Pimcore\Model;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Data;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Normalizer\NormalizerInterface;
+use Pimcore\Tool\UserTimezone;
 
 class Date extends Data implements ResourcePersistenceAwareInterface, QueryResourcePersistenceAwareInterface, TypeDeclarationSupportInterface, EqualComparisonInterface, VarExporterInterface, NormalizerInterface
 {
@@ -50,7 +52,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      * @see ResourcePersistenceAwareInterface::getDataForResource
      *
      */
-    public function getDataForResource(mixed $data, DataObject\Concrete $object = null, array $params = []): int|string|null
+    public function getDataForResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): int|string|null
     {
         $data = $this->handleDefaultValue($data, $object, $params);
 
@@ -71,7 +73,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      *
      * @see ResourcePersistenceAwareInterface::getDataFromResource
      */
-    public function getDataFromResource(mixed $data, DataObject\Concrete $object = null, array $params = []): ?Carbon
+    public function getDataFromResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?Carbon
     {
         if ($data) {
             if ($this->getColumnType() == 'date') {
@@ -92,7 +94,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
     /**
      * @see QueryResourcePersistenceAwareInterface::getDataForQueryResource
      */
-    public function getDataForQueryResource(mixed $data, DataObject\Concrete $object = null, array $params = []): int|null|string
+    public function getDataForQueryResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): int|null|string
     {
         return $this->getDataForResource($data, $object, $params);
     }
@@ -103,7 +105,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      * @see Data::getDataForEditmode
      *
      */
-    public function getDataForEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?int
+    public function getDataForEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?int
     {
         if ($data) {
             return $data->getTimestamp();
@@ -125,10 +127,14 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      *
      * @see Data::getDataFromEditmode
      */
-    public function getDataFromEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?Carbon
+    public function getDataFromEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?Carbon
     {
         if (is_numeric($data)) {
             return $this->getDateFromTimestamp($data / 1000);
+        }
+
+        if (is_string($data)) {
+            return Carbon::parse($data);
         }
 
         return null;
@@ -138,9 +144,9 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      * @param Model\DataObject\Concrete|null $object
      *
      */
-    public function getDataFromGridEditor(float $data, Concrete $object = null, array $params = []): ?Carbon
+    public function getDataFromGridEditor(float|string $data, ?Concrete $object = null, array $params = []): ?Carbon
     {
-        if ($data) {
+        if ($data && is_float($data)) {
             $data = $data * 1000;
         }
 
@@ -151,7 +157,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      * @param DataObject\Concrete|null $object
      *
      */
-    public function getDataForGrid(?Carbon $data, Concrete $object = null, array $params = []): ?int
+    public function getDataForGrid(?Carbon $data, ?Concrete $object = null, array $params = []): ?int
     {
         if ($data) {
             return $data->getTimestamp();
@@ -166,10 +172,10 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
      * @see Data::getVersionPreview
      *
      */
-    public function getVersionPreview(mixed $data, DataObject\Concrete $object = null, array $params = []): string
+    public function getVersionPreview(mixed $data, ?DataObject\Concrete $object = null, array $params = []): string
     {
-        if ($data instanceof \DateTimeInterface) {
-            return $data->format('Y-m-d');
+        if ($data instanceof DateTimeInterface) {
+            return $this->applyTimezone($data)->format('Y-m-d');
         }
 
         return '';
@@ -184,6 +190,9 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
         return 0;
     }
 
+    /**
+     * @return $this
+     */
     public function setDefaultValue(mixed $defaultValue): static
     {
         if (strlen((string)$defaultValue) > 0) {
@@ -200,8 +209,8 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
     public function getForCsvExport(DataObject\Localizedfield|DataObject\Fieldcollection\Data\AbstractData|DataObject\Objectbrick\Data\AbstractData|DataObject\Concrete $object, array $params = []): string
     {
         $data = $this->getDataFromObjectParam($object, $params);
-        if ($data instanceof \DateTimeInterface) {
-            return $data->format('Y-m-d');
+        if ($data instanceof DateTimeInterface) {
+            return $this->applyTimezone($data)->format('Y-m-d');
         }
 
         return '';
@@ -232,7 +241,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
         return true;
     }
 
-    public function getDiffDataFromEditmode(array $data, DataObject\Concrete $object = null, array $params = []): ?Carbon
+    public function getDiffDataFromEditmode(array $data, ?DataObject\Concrete $object = null, array $params = []): ?Carbon
     {
         $thedata = $data[0]['data'];
         if ($thedata) {
@@ -245,7 +254,7 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
     /** See parent class.
      *
      */
-    public function getDiffDataForEditMode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?array
+    public function getDiffDataForEditMode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?array
     {
         $result = [];
 
@@ -321,8 +330,8 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
 
     public function isEqual(mixed $oldValue, mixed $newValue): bool
     {
-        $oldValue = $oldValue instanceof \DateTimeInterface ? $oldValue->format('Y-m-d') : null;
-        $newValue = $newValue instanceof \DateTimeInterface ? $newValue->format('Y-m-d') : null;
+        $oldValue = $oldValue instanceof DateTimeInterface ? $oldValue->format('Y-m-d') : null;
+        $newValue = $newValue instanceof DateTimeInterface ? $newValue->format('Y-m-d') : null;
 
         return $oldValue === $newValue;
     }
@@ -396,5 +405,14 @@ class Date extends Data implements ResourcePersistenceAwareInterface, QueryResou
     public function setColumnType(string $columnType): void
     {
         $this->columnType = $columnType;
+    }
+
+    private function applyTimezone(DateTimeInterface $date): DateTimeInterface
+    {
+        if ($this->columnType !== 'date') {
+            $date = UserTimezone::applyTimezone($date);
+        }
+
+        return $date;
     }
 }

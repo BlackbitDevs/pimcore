@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace Pimcore\Document\Adapter;
 
+use Exception;
+use Pimcore;
 use Pimcore\Logger;
 use Pimcore\Model\Asset;
 use Pimcore\Tool\Console;
@@ -28,6 +30,8 @@ use Symfony\Component\Process\Process;
  */
 class LibreOffice extends Ghostscript
 {
+    use GetTextConversionHelperTrait;
+
     public function isAvailable(): bool
     {
         try {
@@ -35,7 +39,7 @@ class LibreOffice extends Ghostscript
             if ($lo && parent::isAvailable()) { // LibreOffice and GhostScript is necessary
                 return true;
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Logger::notice($e->getMessage());
         }
 
@@ -54,7 +58,7 @@ class LibreOffice extends Ghostscript
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public static function getLibreOfficeCli(): string
     {
@@ -73,7 +77,7 @@ class LibreOffice extends Ghostscript
             $message = "Couldn't load document " . $asset->getRealFullPath() . ' only Microsoft/Libre/Open-Office/PDF documents are currently supported';
             Logger::error($message);
 
-            throw new \Exception($message);
+            throw new Exception($message);
         }
 
         $this->asset = $asset;
@@ -100,19 +104,14 @@ class LibreOffice extends Ghostscript
             if (parent::isFileTypeSupported($asset->getFilename())) {
                 return parent::getPdf($asset);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // nothing to do, delegate to libreoffice
         }
 
-        $storagePath = sprintf(
-            '%s/%s/pdf-thumb__%s__libreoffice-document.png',
-            rtrim($asset->getRealPath(), '/'),
-            $asset->getId(),
-            $asset->getId(),
-        );
+        $storagePath = $this->getTemporaryPdfStorageFilePath($asset);
         $storage = Storage::get('asset_cache');
 
-        $lock = \Pimcore::getContainer()->get(LockFactory::class)->createLock('soffice');
+        $lock = Pimcore::getContainer()->get(LockFactory::class)->createLock('soffice');
         if (!$storage->fileExists($storagePath)) {
             $localAssetTmpPath = $asset->getLocalFile();
 
@@ -153,34 +152,10 @@ class LibreOffice extends Ghostscript
                 $message = "Couldn't convert document to PDF: " . $asset->getRealFullPath() . " with the command: '" . $process->getCommandLine() . "'";
                 Logger::error($message);
 
-                throw new \Exception($message);
+                throw new Exception($message);
             }
         }
 
         return $storage->readStream($storagePath);
-    }
-
-    public function getText(?int $page = null, ?Asset\Document $asset = null, ?string $path = null): mixed
-    {
-        if (!$asset && $this->asset) {
-            $asset = $this->asset;
-        }
-
-        try {
-            if (!parent::isFileTypeSupported($asset->getFilename())) {
-                $file = $this->getPdf($asset);
-
-                $fileMetaData = stream_get_meta_data($file);
-                if ($fileMetaData['uri']) {
-                    $path = $fileMetaData['uri'];
-                }
-            }
-
-            return parent::getText($page, $asset, $path);
-        } catch (\Exception $e) {
-            Logger::debug($e->getMessage());
-
-            return ''; // default empty string
-        }
     }
 }

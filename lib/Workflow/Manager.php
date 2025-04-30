@@ -16,13 +16,14 @@ declare(strict_types=1);
 
 namespace Pimcore\Workflow;
 
+use Exception;
+use Pimcore;
 use Pimcore\Event\Workflow\GlobalActionEvent;
 use Pimcore\Event\WorkflowEvents;
 use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\Element\ElementInterface;
-use Pimcore\Model\Element\ValidationException;
 use Pimcore\Workflow\EventSubscriber\ChangePublishedStateSubscriber;
 use Pimcore\Workflow\EventSubscriber\NotesSubscriber;
 use Pimcore\Workflow\MarkingStore\StateTableMarkingStore;
@@ -84,7 +85,7 @@ class Manager
      *
      * @return $this
      */
-    public function addGlobalAction(string $workflowName, string $action, array $actionConfig, CustomHtmlServiceInterface $customHtmlService = null): static
+    public function addGlobalAction(string $workflowName, string $action, array $actionConfig, ?CustomHtmlServiceInterface $customHtmlService = null): static
     {
         $this->globalActions[$workflowName] = $this->globalActions[$workflowName] ?? [];
         $this->globalActions[$workflowName][$action] = new GlobalAction($action, $actionConfig, $this->expressionService, $workflowName, $customHtmlService);
@@ -113,10 +114,9 @@ class Manager
     /**
      * Returns all PlaceConfigs (for given marking) ordered by it's appearence in the workflow config file
      *
-     *
-     * @return PlaceConfig[];
+     * @return PlaceConfig[]
      */
-    public function getOrderedPlaceConfigs(WorkflowInterface $workflow, Marking $marking = null): array
+    public function getOrderedPlaceConfigs(WorkflowInterface $workflow, ?Marking $marking = null): array
     {
         if (is_null($marking)) {
             return $this->placeConfigs[$workflow->getName()] ?? [];
@@ -201,18 +201,21 @@ class Manager
         return $workflow;
     }
 
-    public function getWorkflowByName(string $workflowName): ?object
+    public function getWorkflowByName(string $workflowName): ?WorkflowInterface
     {
         $config = $this->getWorkflowConfig($workflowName);
 
-        return \Pimcore::getContainer()->get($config->getType() . '.' . $workflowName);
+        $workflow = Pimcore::getContainer()?->get($config->getType() . '.' . $workflowName);
+
+        if (!$workflow instanceof WorkflowInterface) {
+            return null;
+        }
+
+        return $workflow;
     }
 
     /**
-     *
-     *
-     * @throws ValidationException
-     * @throws \Exception
+     * @throws Exception
      */
     public function applyWithAdditionalData(
         WorkflowInterface $workflow,
@@ -230,7 +233,7 @@ class Manager
         $transition = $this->getTransitionByName($workflow->getName(), $transition);
         $changePublishedState = $transition instanceof Transition ? $transition->getChangePublishedState() : null;
 
-        if ($saveSubject && $subject instanceof ElementInterface) {
+        if ($saveSubject) {
             if ($changePublishedState === ChangePublishedStateSubscriber::SAVE_VERSION) {
                 $subject->saveVersion();
             } else {
@@ -244,7 +247,7 @@ class Manager
     /**
      *
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function applyGlobalAction(
         WorkflowInterface $workflow,
@@ -290,7 +293,7 @@ class Manager
     /**
      *
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function getTransitionByName(string $workflowName, string $transitionName): ?\Symfony\Component\Workflow\Transition
     {
@@ -315,7 +318,7 @@ class Manager
      *
      * @return bool true if initial state was applied
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function ensureInitialPlace(string $workflowName, object $subject): bool
     {
@@ -360,5 +363,41 @@ class Manager
         $definition = $workflow->getDefinition();
 
         return $definition->getInitialPlaces();
+    }
+
+    public function isDeniedInWorkflow(ElementInterface $element, string $permissionType): bool
+    {
+        $userPermissions = $this->getWorkflowUserPermissions($element);
+
+        return ($userPermissions[$permissionType] ?? null) === false;
+    }
+
+    private function getWorkflowUserPermissions(ElementInterface $element): array
+    {
+        $userPermissions = [];
+        foreach ($this->getAllWorkflows() as $workflowName) {
+            $workflow = $this->getWorkflowIfExists($element, $workflowName);
+
+            if (empty($workflow)) {
+                continue;
+            }
+
+            $marking = $workflow->getMarking($element);
+
+            if (!count($marking->getPlaces())) {
+                continue;
+            }
+
+            foreach ($this->getOrderedPlaceConfigs($workflow, $marking) as $placeConfig) {
+                if (!empty($placeConfig->getPermissions($workflow, $element))) {
+                    $userPermissions = array_merge(
+                        $userPermissions,
+                        $placeConfig->getUserPermissions($workflow, $element)
+                    );
+                }
+            }
+        }
+
+        return $userPermissions;
     }
 }

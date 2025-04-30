@@ -63,7 +63,11 @@ class OptionsProvider implements SelectOptionsProviderInterface
      */
     public function getDefaultValue(array $context, Data $fieldDefinition): ?string 
     {
-        return $fieldDefinition->getDefaultValue();
+        if (method_exists($fieldDefinition, 'getDefaultValue')) {
+            return $fieldDefinition->getDefaultValue();
+        }
+
+        return null;
     }
 
     public function hasStaticOptions(array $context, Data $fieldDefinition): bool
@@ -143,4 +147,3 @@ The `purpose` parameter can take the following values:
 | groupId   | group id |
 | keyId     | key id |
 | keyDefinition | the fielddefinition of the classificationstore attribute |
-

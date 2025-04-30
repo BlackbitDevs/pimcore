@@ -17,6 +17,8 @@ declare(strict_types=1);
 namespace Pimcore\Model\DataObject\Concrete\Dao;
 
 use Doctrine\DBAL\Connection;
+use Exception;
+use Pimcore\Db\Helper;
 use Pimcore\Model\DataObject;
 
 /**
@@ -64,7 +66,7 @@ class InheritanceHelper
 
     protected ?string $queryIdField = null;
 
-    public function __construct(string $classId, string $idField = null, string $storetable = null, string $querytable = null, string $relationtable = null, string $queryIdField = null)
+    public function __construct(string $classId, ?string $idField = null, ?string $storetable = null, ?string $querytable = null, ?string $relationtable = null, ?string $queryIdField = null)
     {
         $this->db = \Pimcore\Db::get();
         $this->classId = $classId;
@@ -134,7 +136,7 @@ class InheritanceHelper
         $this->fieldDefinitions[$fieldname] = $fieldDefinition;
     }
 
-    public function addRelationToCheck(string $fieldname, DataObject\ClassDefinition\Data $fieldDefinition, array $queryfields = null): void
+    public function addRelationToCheck(string $fieldname, DataObject\ClassDefinition\Data $fieldDefinition, ?array $queryfields = null): void
     {
         if ($queryfields === null) {
             $this->relations[$fieldname] = $fieldname;
@@ -148,7 +150,7 @@ class InheritanceHelper
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function doUpdate(int $oo_id, bool $createMissingChildrenRows = false, array $params = []): void
     {
@@ -233,10 +235,11 @@ class InheritanceHelper
                 $missingIds = $this->db->fetchFirstColumn($query);
 
                 // create entries for children that don't have an entry yet
-                $originalEntry = $this->db->fetchAssociative('SELECT * FROM ' . $this->querytable . ' WHERE ' . $this->idField . ' = ?', [$oo_id]);
+                $originalEntry = Helper::quoteDataIdentifiers($this->db, $this->db->fetchAssociative('SELECT * FROM ' . $this->querytable . ' WHERE ' . $this->idField . ' = ?', [$oo_id]));
+
                 foreach ($missingIds as $id) {
-                    $originalEntry[$this->idField] = $id;
-                    $this->db->insert($this->querytable, $originalEntry);
+                    $originalEntry[$this->db->quoteIdentifier($this->idField)] = $id;
+                    $this->db->insert($this->db->quoteIdentifier($this->querytable), $originalEntry);
                 }
             }
         }
@@ -346,7 +349,7 @@ class InheritanceHelper
         return array_values($filteredResult);
     }
 
-    protected function buildTree(int $currentParentId, string $fields = '', array $parentIdGroups = null, array $params = []): array
+    protected function buildTree(int $currentParentId, string $fields = '', ?array $parentIdGroups = null, array $params = []): array
     {
         $objects = [];
         $storeTable = $this->storetable;
@@ -572,7 +575,7 @@ class InheritanceHelper
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     protected function updateQueryTable(int $oo_id, array $ids, string $fieldname): void
     {

@@ -16,6 +16,10 @@ declare(strict_types=1);
 
 namespace Pimcore\Model\DataObject\SelectOptions;
 
+use Exception;
+use InvalidArgumentException;
+use JsonSerializable;
+use Pimcore;
 use Pimcore\Bundle\CoreBundle\OptionsProvider\SelectOptionsOptionsProvider;
 use Pimcore\Cache\RuntimeCache;
 use Pimcore\DataObject\ClassBuilder\PHPSelectOptionsEnumDumperInterface;
@@ -27,6 +31,7 @@ use Pimcore\Model\DataObject\Fieldcollection;
 use Pimcore\Model\DataObject\Objectbrick;
 use Pimcore\Model\DataObject\Traits\LocateFileTrait;
 use Pimcore\Model\Exception\NotFoundException;
+use RuntimeException;
 
 /**
  * @method bool isWriteable()
@@ -34,13 +39,15 @@ use Pimcore\Model\Exception\NotFoundException;
  * @method void delete()
  * @method Config\Dao getDao()
  */
-final class Config extends AbstractModel implements \JsonSerializable
+final class Config extends AbstractModel implements JsonSerializable
 {
     use LocateFileTrait;
 
     public const PROPERTY_ID = 'id';
 
     public const PROPERTY_GROUP = 'group';
+
+    public const PROPERTY_ADMIN_ONLY = 'adminOnly';
 
     public const PROPERTY_USE_TRAITS = 'useTraits';
 
@@ -51,6 +58,8 @@ final class Config extends AbstractModel implements \JsonSerializable
     protected string $id;
 
     protected ?string $group = null;
+
+    protected bool $adminOnly = false;
 
     protected string $useTraits = '';
 
@@ -73,7 +82,7 @@ final class Config extends AbstractModel implements \JsonSerializable
     {
         $reservedWordsHelper = new ReservedWordsHelper();
         if ($reservedWordsHelper->isReservedWord($id)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'ID must not be one of reserved words: ' . implode(', ', $reservedWordsHelper->getAllReservedWords()),
                 1677241981466
             );
@@ -95,6 +104,21 @@ final class Config extends AbstractModel implements \JsonSerializable
     public function setGroup(?string $group): static
     {
         $this->group = $group;
+
+        return $this;
+    }
+
+    public function getAdminOnly(): bool
+    {
+        return $this->adminOnly;
+    }
+
+    /**
+     * @return $this
+     */
+    public function setAdminOnly(bool $adminOnly): static
+    {
+        $this->adminOnly = $adminOnly;
 
         return $this;
     }
@@ -188,9 +212,9 @@ final class Config extends AbstractModel implements \JsonSerializable
         try {
             $selectOptions = RuntimeCache::get($cacheKey);
             if (!$selectOptions instanceof self) {
-                throw new \RuntimeException('Select options in registry is invalid', 1678353750987);
+                throw new RuntimeException('Select options in registry is invalid', 1678353750987);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             try {
                 $selectOptions = new self();
                 /** @var Config\Dao $dao */
@@ -215,10 +239,11 @@ final class Config extends AbstractModel implements \JsonSerializable
         // Check whether ID is available
         $id = $data[static::PROPERTY_ID] ?? null;
         if (empty($id)) {
-            throw new \RuntimeException('ID is mandatory for select options definition', 1676646778230);
+            throw new RuntimeException('ID is mandatory for select options definition', 1676646778230);
         }
 
         $group = $data[static::PROPERTY_GROUP] ?? null;
+        $adminOnly = $data[static::PROPERTY_ADMIN_ONLY] ?? false;
         $useTraits = $data[static::PROPERTY_USE_TRAITS] ?? '';
         $implementsInterfaces = $data[static::PROPERTY_IMPLEMENTS_INTERFACES] ?? '';
         $selectOptionsData = $data[static::PROPERTY_SELECT_OPTIONS] ?? [];
@@ -226,6 +251,7 @@ final class Config extends AbstractModel implements \JsonSerializable
         return (new static())
             ->setId($id)
             ->setGroup($group)
+            ->setAdminOnly($adminOnly)
             ->setUseTraits($useTraits)
             ->setImplementsInterfaces($implementsInterfaces)
             ->setSelectOptionsFromData($selectOptionsData);
@@ -244,6 +270,7 @@ final class Config extends AbstractModel implements \JsonSerializable
         return [
             static::PROPERTY_ID => $this->getId(),
             static::PROPERTY_GROUP => $this->getGroup(),
+            static::PROPERTY_ADMIN_ONLY => $this->getAdminOnly(),
             static::PROPERTY_USE_TRAITS => $this->getUseTraits(),
             static::PROPERTY_IMPLEMENTS_INTERFACES => $this->getImplementsInterfaces(),
             static::PROPERTY_SELECT_OPTIONS => $this->getSelectOptions(),
@@ -352,13 +379,13 @@ final class Config extends AbstractModel implements \JsonSerializable
     }
 
     /**
-     * @throws \Exception if configured interfaces or traits don't exist
+     * @throws Exception if configured interfaces or traits don't exist
      *
      * @internal
      */
     public function generateEnumFiles(): void
     {
-        \Pimcore::getContainer()->get(PHPSelectOptionsEnumDumperInterface::class)->dumpPHPEnum($this);
+        Pimcore::getContainer()->get(PHPSelectOptionsEnumDumperInterface::class)->dumpPHPEnum($this);
     }
 
     /**

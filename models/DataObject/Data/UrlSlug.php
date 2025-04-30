@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Pimcore\Model\DataObject\Data;
 
+use Exception;
 use Pimcore\Cache\RuntimeCache;
 use Pimcore\Db;
 use Pimcore\Logger;
@@ -230,7 +231,7 @@ class UrlSlug implements OwnerAwareFieldInterface
             if ($rawItem) {
                 $slug = self::createFromDataRow($rawItem);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Logger::error((string) $e);
         }
 
@@ -242,11 +243,10 @@ class UrlSlug implements OwnerAwareFieldInterface
     /**
      * @internal
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function getAction(): string
     {
-        /** @var ClassDefinition\Data\UrlSlug $fd */
         $fd = null;
 
         $classDefinition = ClassDefinition::getById($this->getClassId());
@@ -338,18 +338,18 @@ class UrlSlug implements OwnerAwareFieldInterface
             }
         }
 
-        if (!$fd instanceof \Pimcore\Model\DataObject\ClassDefinition\Data\UrlSlug) {
+        if (!$fd instanceof ClassDefinition\Data\UrlSlug) {
             // slug could not be resolved which means that the data model has changed in the meantime, delete me.
             $this->delete();
 
-            throw new \Exception('Could not resolve field definition for slug: ' . $this->getSlug(). '. Remove it!');
+            throw new Exception('Could not resolve field definition for slug: ' . $this->getSlug(). '. Remove it!');
         }
 
         return $fd->getAction();
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function delete(): void
     {
@@ -361,7 +361,7 @@ class UrlSlug implements OwnerAwareFieldInterface
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public static function handleSiteDeleted(int $siteId): void
     {
@@ -371,7 +371,7 @@ class UrlSlug implements OwnerAwareFieldInterface
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public static function handleClassDeleted(string $classId): void
     {

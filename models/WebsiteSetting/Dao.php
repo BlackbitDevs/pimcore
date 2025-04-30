@@ -17,28 +17,27 @@ namespace Pimcore\Model\WebsiteSetting;
 
 use Pimcore\Model;
 use Pimcore\Model\Exception\NotFoundException;
+use Pimcore\Model\WebsiteSetting;
 
 /**
  * @internal
  *
- * @property \Pimcore\Model\WebsiteSetting $model
+ * @property WebsiteSetting $model
  */
 class Dao extends Model\Dao\AbstractDao
 {
     /**
-     *
      * @throws NotFoundException
      */
-    public function getById(int $id = null): void
+    public function getById(?int $id = null): void
     {
         if ($id != null) {
             $this->model->setId($id);
         }
 
         $data = $this->db->fetchAssociative('SELECT * FROM website_settings WHERE id = ?', [$this->model->getId()]);
-        $this->assignVariablesToModel($data);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new NotFoundException('Website Setting with id: ' . $this->model->getId() . ' does not exist');
@@ -46,10 +45,9 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     *
      * @throws NotFoundException
      */
-    public function getByName(string $name = null, int $siteId = null, string $language = null): void
+    public function getByName(?string $name = null, ?int $siteId = null, ?string $language = null): void
     {
         if ($name != null) {
             $this->model->setName($name);
@@ -72,7 +70,7 @@ class Dao extends Model\Dao\AbstractDao
             [$this->model->getName(), $siteId, $language]
         );
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new NotFoundException('Website Setting with name: ' . $this->model->getName() . ' does not exist');

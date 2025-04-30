@@ -373,12 +373,14 @@ class Link implements OwnerAwareFieldInterface
     {
         $element = null;
 
-        if ($this->internalType == 'document') {
-            $element = Document::getById($this->internal);
-        } elseif ($this->internalType == 'asset') {
-            $element = Asset::getById($this->internal);
-        } elseif ($this->internalType == 'object') {
-            $element = Concrete::getById($this->internal);
+        if ($this->internal !== null) {
+            if ($this->internalType === 'document') {
+                $element = Document::getById($this->internal);
+            } elseif ($this->internalType === 'asset') {
+                $element = Asset::getById($this->internal);
+            } elseif ($this->internalType === 'object') {
+                $element = Concrete::getById($this->internal);
+            }
         }
 
         return $element;
@@ -450,21 +452,5 @@ class Link implements OwnerAwareFieldInterface
     public function __toString(): string
     {
         return $this->getHtml();
-    }
-
-    /**
-     * @internal
-     *
-     * https://github.com/pimcore/pimcore/pull/15926
-     * used for non-nullable properties stored with null
-     *
-     * @TODO: Remove in Pimcore 12
-     *
-     */
-    public function __unserialize(array $data): void
-    {
-        foreach (get_object_vars($this) as $property => $value) {
-            $this->$property = $data["\0*\0".$property] ?? $value;
-        }
     }
 }

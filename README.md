@@ -1,10 +1,6 @@
-[![Pimcore Inspire 2024 - A Must-Attend Conference for Pimcore Developers!](/.github/inspire-2024.png)](https://pimcore.com/en/resources/events/inspire-2024)
-    
-    
-        
-    
-        
-    
+
+[![PI25-Visuals-GitHub_16x9](https://github.com/user-attachments/assets/d5246851-9603-45d9-ac21-42ce74621577)](https://pimcore.com/en/inspire-2025)
+
 
 ![Pimcore - Own the digital World](./doc/img/logo-readme.svg)
   

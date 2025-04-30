@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 namespace Pimcore\Bundle\CoreBundle\DependencyInjection;
 
+use InvalidArgumentException;
+use Monolog\Level;
+use Pimcore;
 use Pimcore\Bundle\CoreBundle\EventListener\TranslationDebugListener;
 use Pimcore\Extension\Document\Areabrick\Attribute\AsAreabrick;
 use Pimcore\Http\Context\PimcoreContextGuesser;
@@ -47,7 +50,7 @@ final class PimcoreCoreExtension extends ConfigurableExtension implements Prepen
     {
         // on container build the shutdown handler shouldn't be called
         // for details please see https://github.com/pimcore/pimcore/issues/4709
-        \Pimcore::disableShutdown();
+        Pimcore::disableShutdown();
 
         // performance improvement, see https://github.com/symfony/symfony/pull/26276/files
         if (!$container->hasParameter('.container.dumper.inline_class_loader')) {
@@ -83,7 +86,15 @@ final class PimcoreCoreExtension extends ConfigurableExtension implements Prepen
 
         // set default domain for router to main domain if configured
         // this will be overridden from the request in web context but is handy for CLI scripts
-        if (!empty($config['general']['domain'])) {
+        $domain = $config['general']['domain'] ?? '';
+        if ($domain) {
+            // when not an env variable, check if the domain is valid
+            if (
+                !str_starts_with($domain, 'env_') &&
+                !filter_var(idn_to_ascii($domain), FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
+            ) {
+                throw new InvalidArgumentException(sprintf('Invalid main domain name "%s"', $domain));
+            }
             $container->setParameter('router.request_context.host', $config['general']['domain']);
         }
 
@@ -133,6 +144,16 @@ final class PimcoreCoreExtension extends ConfigurableExtension implements Prepen
             static function (ChildDefinition $definition, AsAreabrick $attribute): void {
                 $definition->addTag('pimcore.area.brick', ['id' => $attribute->id]);
             },
+        );
+
+        $container->setParameter(
+            'pimcore_application_logger_db_min_level_or_list',
+            $config['applicationlog']['loggers']['db']['min_level_or_list'] ?? Level::Debug
+        );
+
+        $container->setParameter(
+            'pimcore_application_logger_db_max_level',
+            $config['applicationlog']['loggers']['db']['max_level'] ?? Level::Emergency
         );
     }
 

@@ -61,9 +61,9 @@ By default, here's what's included in the Recommended Bundles list:
 - PimcoreSeoBundle (for SEO-related topics: [Robots.txt](../../18_Tools_and_Features/38_Robots.txt.md), [Sitemaps](../../18_Tools_and_Features/39_Sitemaps.md) and [Redirects](../../02_MVC/04_Routing_and_URLs/04_Redirects.md))
 - PimcoreSimpleBackendSearchBundle (for default search functionality in Backend UI interface)
 - [PimcoreStaticRoutesBundle](../../02_MVC/04_Routing_and_URLs/02_Custom_Routes.md)
-- [PimcoreTinymceBundle](https://github.com/pimcore/pimcore/blob/11.x/bundles/TinymceBundle/README.md) (for default WYSIWYG editor)
+- [PimcoreQuillBundle](https://github.com/pimcore/quill-bundle/blob/1.x/README.md) (for default WYSIWYG editor)
 - [PimcoreUuidBundle](../../19_Development_Tools_and_Details/19_UUID_Support.md)
-- PimcoreWordExportBundle (for import/export functionality for translations in Word format)
+- PimcoreWordExportBundle (for export functionality for translations in Word format)
 - PimcoreXliffBundle (for import/export functionality for translations in Xliff format)
 
 #### Automating Bundle Installation
@@ -167,8 +167,8 @@ pimcore_install:
             port:                 "%env(DB_PORT)%"
 ```
 
-## Set a Timezone
-Make sure to set the corresponding timezone in your configuration. 
+## Set a Time Zone
+Make sure to set the corresponding time zone in your configuration. 
 It will be used for displaying date/time values in the admin backend.
 
 ```yaml
@@ -177,6 +177,6 @@ pimcore:
         timezone: Europe/Berlin
 ```
 
-## Office document preview
+## Office Document Preview
 
 The feature for displaying a [preview of documents](../../04_Assets/03_Working_with_Thumbnails/05_Document_Thumbnails.md) directly in Pimcore is optional. To use it, you must install either [Gotenberg](../../23_Installation_and_Upgrade/03_System_Setup_and_Hosting/06_Additional_Tools_Installation.md#gotenberg) or [LibreOffice](../../23_Installation_and_Upgrade/03_System_Setup_and_Hosting/06_Additional_Tools_Installation.md#libreoffice-pdftotext-inkscape-) according to your preference.

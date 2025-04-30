@@ -15,6 +15,7 @@
 
 namespace Pimcore\Model\DataObject\Classificationstore\GroupConfig;
 
+use Exception;
 use Pimcore\Model;
 
 /**
@@ -32,7 +33,7 @@ class Dao extends Model\Dao\AbstractDao
      *
      * @throws Model\Exception\NotFoundException
      */
-    public function getById(int $id = null): void
+    public function getById(?int $id = null): void
     {
         if ($id != null) {
             $this->model->setId($id);
@@ -40,7 +41,7 @@ class Dao extends Model\Dao\AbstractDao
 
         $data = $this->db->fetchAssociative('SELECT * FROM ' . self::TABLE_NAME_GROUPS . ' WHERE id = ?', [$this->model->getId()]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new Model\Exception\NotFoundException('GroupConfig with id: ' . $this->model->getId() . ' does not exist');
@@ -49,9 +50,9 @@ class Dao extends Model\Dao\AbstractDao
 
     /**
      *
-     * @throws \Exception
+     * @throws Exception
      */
-    public function getByName(string $name = null): void
+    public function getByName(?string $name = null): void
     {
         if ($name != null) {
             $this->model->setName($name);
@@ -62,7 +63,7 @@ class Dao extends Model\Dao\AbstractDao
 
         $data = $this->db->fetchAssociative('SELECT * FROM ' . self::TABLE_NAME_GROUPS . ' WHERE name = ? and storeId = ?', [$name, $storeId]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new Model\Exception\NotFoundException(sprintf('Classification store group config with name "%s" does not exist.', $name));
@@ -79,7 +80,7 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function save(): void
     {
@@ -99,7 +100,7 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function update(): void
     {

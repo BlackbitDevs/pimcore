@@ -30,7 +30,7 @@ class Dao extends Model\Document\Dao
      *
      * @throws Model\Exception\NotFoundException
      */
-    public function getById(int $id = null): void
+    public function getById(?int $id = null): void
     {
         if ($id != null) {
             $this->model->setId($id);
@@ -41,7 +41,7 @@ class Dao extends Model\Document\Dao
                 LEFT JOIN tree_locks ON documents.id = tree_locks.id AND tree_locks.type = 'document'
                 WHERE documents.id = ?", [$this->model->getId()]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $data['published'] = (bool)$data['published'];
             $this->assignVariablesToModel($data);
             $this->model->getHref();

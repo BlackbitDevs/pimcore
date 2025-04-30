@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Pimcore\Model\DataObject\ClassDefinition\Data;
 
+use InvalidArgumentException;
 use Pimcore\Model;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Data;
@@ -118,6 +119,9 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
         return null;
     }
 
+    /**
+     * @return $this
+     */
     public function setDefaultValue(float|int|string|null $defaultValue): static
     {
         if ((string)$defaultValue !== '') {
@@ -251,15 +255,15 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
         }
 
         if ($precision < 1 || $precision > 65) {
-            throw new \InvalidArgumentException('Decimal precision must be a value between 1 and 65');
+            throw new InvalidArgumentException('Decimal precision must be a value between 1 and 65');
         }
 
         if ($scale < 0 || $scale > 30 || $scale > $precision) {
-            throw new \InvalidArgumentException('Decimal scale must be a value between 0 and 30');
+            throw new InvalidArgumentException('Decimal scale must be a value between 0 and 30');
         }
 
         if ($scale > $precision) {
-            throw new \InvalidArgumentException(sprintf(
+            throw new InvalidArgumentException(sprintf(
                 'Decimal scale can\'t be larger than precision (%d)',
                 $precision
             ));
@@ -273,7 +277,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      *
      * @see ResourcePersistenceAwareInterface::getDataForResource
      */
-    public function getDataForResource(mixed $data, DataObject\Concrete $object = null, array $params = []): float|int|string|null
+    public function getDataForResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): float|int|string|null
     {
         $data = $this->handleDefaultValue($data, $object, $params);
 
@@ -290,7 +294,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      * @see ResourcePersistenceAwareInterface::getDataFromResource
      *
      */
-    public function getDataFromResource(mixed $data, DataObject\Concrete $object = null, array $params = []): float|int|string|null
+    public function getDataFromResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): float|int|string|null
     {
         if (is_numeric($data)) {
             return $this->toNumeric($data);
@@ -305,7 +309,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      * @see QueryResourcePersistenceAwareInterface::getDataForQueryResource
      *
      */
-    public function getDataForQueryResource(mixed $data, Concrete $object = null, array $params = []): float|int|string|null
+    public function getDataForQueryResource(mixed $data, ?Concrete $object = null, array $params = []): float|int|string|null
     {
         //TODO same fallback as above
 
@@ -317,7 +321,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      *
      * @see Data::getDataForEditmode
      */
-    public function getDataForEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): float|int|string|null
+    public function getDataForEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): float|int|string|null
     {
         return $this->getDataForResource($data, $object, $params);
     }
@@ -327,7 +331,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      *
      * @see Data::getDataFromEditmode
      */
-    public function getDataFromEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): float|int|string|null
+    public function getDataFromEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): float|int|string|null
     {
         return $this->getDataFromResource($data, $object, $params);
     }
@@ -337,7 +341,7 @@ class Numeric extends Data implements ResourcePersistenceAwareInterface, QueryRe
      *
      * @see Data::getVersionPreview
      */
-    public function getVersionPreview(mixed $data, DataObject\Concrete $object = null, array $params = []): string
+    public function getVersionPreview(mixed $data, ?DataObject\Concrete $object = null, array $params = []): string
     {
         return (string) $data;
     }

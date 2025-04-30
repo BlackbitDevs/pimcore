@@ -21,6 +21,7 @@ use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition\Data;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Normalizer\NormalizerInterface;
+use stdClass;
 
 class StructuredTable extends Data implements ResourcePersistenceAwareInterface, QueryResourcePersistenceAwareInterface, TypeDeclarationSupportInterface, EqualComparisonInterface, VarExporterInterface, NormalizerInterface
 {
@@ -58,6 +59,9 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
         return $this->labelWidth;
     }
 
+    /**
+     * @return $this
+     */
     public function setLabelWidth(int $labelWidth): static
     {
         $this->labelWidth = $labelWidth;
@@ -65,6 +69,9 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function setLabelFirstCell(string $labelFirstCell): static
     {
         $this->labelFirstCell = $labelFirstCell;
@@ -82,6 +89,9 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
         return $this->cols;
     }
 
+    /**
+     * @return $this
+     */
     public function setCols(array $cols): static
     {
         if (isset($cols['key'])) {
@@ -104,6 +114,9 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
         return $this->rows;
     }
 
+    /**
+     * @return $this
+     */
     public function setRows(array $rows): static
     {
         if (isset($rows['key'])) {
@@ -128,7 +141,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @see ResourcePersistenceAwareInterface::getDataForResource
      *
      */
-    public function getDataForResource(mixed $data, DataObject\Concrete $object = null, array $params = []): array
+    public function getDataForResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): array
     {
         $resourceData = [];
         if ($data instanceof DataObject\Data\StructuredTable) {
@@ -151,7 +164,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @see ResourcePersistenceAwareInterface::getDataFromResource
      *
      */
-    public function getDataFromResource(mixed $data, Concrete $object = null, array $params = []): DataObject\Data\StructuredTable
+    public function getDataFromResource(mixed $data, ?Concrete $object = null, array $params = []): DataObject\Data\StructuredTable
     {
         $structuredData = [];
         foreach ($this->getRows() as $r) {
@@ -177,7 +190,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      *
      * @see QueryResourcePersistenceAwareInterface::getDataForQueryResource
      */
-    public function getDataForQueryResource(mixed $data, DataObject\Concrete $object = null, array $params = []): array
+    public function getDataForQueryResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): array
     {
         return $this->getDataForResource($data, $object, $params);
     }
@@ -188,7 +201,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @see Data::getDataForEditmode
      *
      */
-    public function getDataForEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): array
+    public function getDataForEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): array
     {
         $editArray = [];
         if ($data instanceof DataObject\Data\StructuredTable) {
@@ -216,7 +229,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      *
      * @see Data::getDataFromEditmode
      */
-    public function getDataFromEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): DataObject\Data\StructuredTable
+    public function getDataFromEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): DataObject\Data\StructuredTable
     {
         $table = new DataObject\Data\StructuredTable();
         $tableData = [];
@@ -234,7 +247,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @param DataObject\Concrete|null $object
      *
      */
-    public function getDataForGrid(?DataObject\Data\StructuredTable $data, Concrete $object = null, array $params = []): ?array
+    public function getDataForGrid(?DataObject\Data\StructuredTable $data, ?Concrete $object = null, array $params = []): ?array
     {
         if ($data instanceof DataObject\Data\StructuredTable) {
             if (!$data->isEmpty()) {
@@ -251,7 +264,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @see Data::getVersionPreview
      *
      */
-    public function getVersionPreview(mixed $data, DataObject\Concrete $object = null, array $params = []): string
+    public function getVersionPreview(mixed $data, ?DataObject\Concrete $object = null, array $params = []): string
     {
         if ($data instanceof DataObject\Data\StructuredTable) {
             return $data->getHtmlTable($this->rows, $this->cols);
@@ -327,7 +340,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
             foreach ($cols as $c) {
                 $name = $r['key'] . '#' . $c['key'];
 
-                $col = new \stdClass();
+                $col = new stdClass();
                 $col->name = $name;
                 $length = 0;
                 if (isset($c['length']) && $c['length']) {
@@ -346,7 +359,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
      * @param int|null $length The length of the column, default is 255 for text
      *
      */
-    protected function typeMapper(string $type, int $length = null): ?string
+    protected function typeMapper(string $type, ?int $length = null): ?string
     {
         $mapper = [
             'text' => 'varchar('.($length > 0 ? $length : '190').')',
@@ -374,7 +387,7 @@ class StructuredTable extends Data implements ResourcePersistenceAwareInterface,
     /** See parent class.
      *
      */
-    public function getDiffDataForEditMode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?array
+    public function getDiffDataForEditMode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?array
     {
         $defaultData = parent::getDiffDataForEditMode($data, $object, $params);
         $html = $defaultData[0]['value'];

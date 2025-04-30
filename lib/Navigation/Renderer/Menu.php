@@ -39,8 +39,10 @@ declare(strict_types=1);
 
 namespace Pimcore\Navigation\Renderer;
 
+use Exception;
 use Pimcore\Navigation\Container;
 use Pimcore\Navigation\Page;
+use RecursiveIteratorIterator;
 
 class Menu extends AbstractRenderer
 {
@@ -491,29 +493,28 @@ class Menu extends AbstractRenderer
         }
 
         // UL class
-        if (isset($options['ulClass']) && $options['ulClass'] !== null) {
+        if (isset($options['ulClass'])) {
             $options['ulClass'] = $options['ulClass'];
         } else {
             $options['ulClass'] = $this->getUlClass();
         }
 
         // UL id
-        if (isset($options['ulId']) && $options['ulId'] !== null) {
+        if (isset($options['ulId'])) {
             $options['ulId'] = (string) $options['ulId'];
         } else {
             $options['ulId'] = $this->getUlId();
         }
 
         // Active class
-        if (isset($options['activeClass']) && $options['activeClass'] !== null
-        ) {
+        if (isset($options['activeClass'])) {
             $options['activeClass'] = (string) $options['activeClass'];
         } else {
             $options['activeClass'] = $this->getActiveClass();
         }
 
         // Parent class
-        if (isset($options['parentClass']) && $options['parentClass'] !== null) {
+        if (isset($options['parentClass'])) {
             $options['parentClass'] = (string) $options['parentClass'];
         } else {
             $options['parentClass'] = $this->getParentClass();
@@ -720,7 +721,7 @@ class Menu extends AbstractRenderer
         }
 
         // create iterator
-        $iterator = new \RecursiveIteratorIterator($container, \RecursiveIteratorIterator::SELF_FIRST);
+        $iterator = new RecursiveIteratorIterator($container, RecursiveIteratorIterator::SELF_FIRST);
 
         if (is_int($maxDepth)) {
             $iterator->setMaxDepth($maxDepth);
@@ -733,7 +734,7 @@ class Menu extends AbstractRenderer
             $isActive = $page->isActive(true);
 
             // Set ulClass depth wise if array of classes is supplied.
-            if (\is_array($ulClasses)) {
+            if (is_array($ulClasses)) {
                 $ulClass = $ulClasses[$depth] ?? $ulClasses['default'];
             } else {
                 $ulClass = (string) $ulClasses;
@@ -953,11 +954,11 @@ class Menu extends AbstractRenderer
      */
     public function renderSubMenu(
         Container $container,
-        string $ulClass = null,
-        int|string $indent = null,
-        string $ulId = null,
+        ?string $ulClass = null,
+        int|string|null $indent = null,
+        ?string $ulId = null,
         bool $addPageClassToLi = false,
-        int|string $innerIndent = null
+        int|string|null $innerIndent = null
     ): string {
         return $this->renderMenu($container, [
             'indent' => $indent,
@@ -991,16 +992,16 @@ class Menu extends AbstractRenderer
      *
      * @return string                                helper output
      *
-     * @throws \Exception   When no partial script is set
+     * @throws Exception   When no partial script is set
      */
-    public function renderTemplate(Container $container, array|string $partial = null): string
+    public function renderTemplate(Container $container, array|string|null $partial = null): string
     {
         if (null === $partial) {
             $partial = $this->getTemplate();
         }
 
         if (empty($partial)) {
-            $e = new \Exception('Unable to render menu: No partial view script provided');
+            $e = new Exception('Unable to render menu: No partial view script provided');
 
             throw $e;
         }
@@ -1017,7 +1018,7 @@ class Menu extends AbstractRenderer
      *
      *
      */
-    public function renderPartial(Container $container, array|string $partial = null): string
+    public function renderPartial(Container $container, array|string|null $partial = null): string
     {
         return $this->renderTemplate($container, $partial);
     }

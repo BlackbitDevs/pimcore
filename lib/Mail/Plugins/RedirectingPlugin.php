@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Pimcore\Mail\Plugins;
 
+use Exception;
 use Pimcore\Helper\Mail as MailHelper;
 use Pimcore\Mail;
 use Pimcore\SystemSettingsConfig;
@@ -74,7 +75,7 @@ final class RedirectingPlugin
         // additional checks if message is Pimcore\Mail
         if ($message->doRedirectMailsToDebugMailAddresses()) {
             if (empty($this->getRecipient())) {
-                throw new \Exception('No valid debug email address given in "Settings" -> "System Settings" -> "Debug"');
+                throw new Exception('No valid debug email address given in "Settings" -> "System Settings" -> "Debug"');
             }
 
             $this->appendDebugInformation($message);
@@ -101,7 +102,7 @@ final class RedirectingPlugin
      */
     public function sendPerformed(Mail $message): void
     {
-        if ($message instanceof Mail && $message->doRedirectMailsToDebugMailAddresses()) {
+        if ($message->doRedirectMailsToDebugMailAddresses()) {
             $this->setSenderAndReceiversParams($message);
             $this->removeDebugInformation($message);
         }
@@ -112,7 +113,7 @@ final class RedirectingPlugin
      */
     private function appendDebugInformation(Mail $message): void
     {
-        if ($message->isPreventingDebugInformationAppending() != true) {
+        if (!$message->isPreventingDebugInformationAppending()) {
             $originalData = [];
 
             //adding the debug information to the html email

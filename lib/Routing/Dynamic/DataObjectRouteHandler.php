@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace Pimcore\Routing\Dynamic;
 
+use Exception;
 use Pimcore\Http\Request\Resolver\SiteResolver;
 use Pimcore\Http\RequestHelper;
 use Pimcore\Model\DataObject;
@@ -41,14 +42,13 @@ final class DataObjectRouteHandler implements DynamicRouteHandlerInterface
         $this->requestHelper = $requestHelper;
     }
 
-    public function getRouteByName(string $name): ?DataObjectRoute
+    public function getRouteByName(string $name): DataObjectRoute
     {
         if (preg_match('/^data_object_(\d+)_(\d+)_(.*)$/', $name, $match)) {
             $slug = DataObject\Data\UrlSlug::resolveSlug($match[3], (int) $match[2]);
             if ($slug && $slug->getObjectId() == $match[1]) {
-                /** @var DataObject\Concrete $object * */
-                $object = DataObject::getById((int) $match[1]);
-                if ($object instanceof DataObject\Concrete && $object->isPublished()) {
+                $object = DataObject\Concrete::getById((int) $match[1]);
+                if ($object?->isPublished()) {
                     return $this->buildRouteForFromSlug($slug, $object);
                 }
             }
@@ -76,7 +76,7 @@ final class DataObjectRouteHandler implements DynamicRouteHandlerInterface
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     private function buildRouteForFromSlug(DataObject\Data\UrlSlug $slug, DataObject\Concrete $object): DataObjectRoute
     {

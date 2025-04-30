@@ -57,7 +57,7 @@ class ObjectUserProvider implements UserProviderInterface
 
     protected function setClassName(string $className): void
     {
-        if (empty($className)) {
+        if ($className === '') {
             throw new InvalidArgumentException('Object class name is empty');
         }
 
@@ -65,8 +65,7 @@ class ObjectUserProvider implements UserProviderInterface
             throw new InvalidArgumentException(sprintf('User class %s does not exist', $className));
         }
 
-        $reflector = new \ReflectionClass($className);
-        if (!$reflector->isSubclassOf(AbstractObject::class)) {
+        if (!is_subclass_of($className, AbstractObject::class)) {
             throw new InvalidArgumentException(sprintf('User class %s must be a subclass of %s', $className, AbstractObject::class));
         }
 
@@ -92,9 +91,7 @@ class ObjectUserProvider implements UserProviderInterface
             throw new UnsupportedUserException();
         }
 
-        $refreshedUser = call_user_func_array([$this->className, 'getById'], [$user->getId()]);
-
-        return $refreshedUser;
+        return $this->className::getById($user->getId());
     }
 
     public function supportsClass(string $class): bool

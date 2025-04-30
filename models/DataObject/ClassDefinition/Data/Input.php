@@ -72,7 +72,7 @@ class Input extends Data implements
      *
      * @see ResourcePersistenceAwareInterface::getDataForResource
      */
-    public function getDataForResource(mixed $data, Concrete $object = null, array $params = []): ?string
+    public function getDataForResource(mixed $data, ?Concrete $object = null, array $params = []): ?string
     {
         $data = $this->handleDefaultValue($data, $object, $params);
 
@@ -84,7 +84,7 @@ class Input extends Data implements
      *
      * @see ResourcePersistenceAwareInterface::getDataFromResource
      */
-    public function getDataFromResource(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
+    public function getDataFromResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?string
     {
         return $data;
     }
@@ -94,7 +94,7 @@ class Input extends Data implements
      *
      * @see QueryResourcePersistenceAwareInterface::getDataForQueryResource
      */
-    public function getDataForQueryResource(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
+    public function getDataForQueryResource(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?string
     {
         return $this->getDataForResource($data, $object, $params);
     }
@@ -105,7 +105,7 @@ class Input extends Data implements
      * @see Data::getDataForEditmode
      *
      */
-    public function getDataForEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
+    public function getDataForEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?string
     {
         return $this->getDataForResource($data, $object, $params);
     }
@@ -113,7 +113,7 @@ class Input extends Data implements
     /**
      * @see Data::getDataFromEditmode
      */
-    public function getDataFromEditmode(mixed $data, DataObject\Concrete $object = null, array $params = []): ?string
+    public function getDataFromEditmode(mixed $data, ?DataObject\Concrete $object = null, array $params = []): ?string
     {
         if ($data === '') {
             return null;
@@ -126,7 +126,7 @@ class Input extends Data implements
      * @param Model\DataObject\Concrete|null $object
      *
      */
-    public function getDataFromGridEditor(string $data, Concrete $object = null, array $params = []): ?string
+    public function getDataFromGridEditor(string $data, ?Concrete $object = null, array $params = []): ?string
     {
         return $this->getDataFromEditmode($data, $object, $params);
     }
@@ -136,6 +136,9 @@ class Input extends Data implements
         return $this->columnLength;
     }
 
+    /**
+     * @return $this
+     */
     public function setColumnLength(?int $columnLength): static
     {
         if ($columnLength) {
@@ -197,8 +200,8 @@ class Input extends Data implements
 
     public function checkValidity(mixed $data, bool $omitMandatoryCheck = false, array $params = []): void
     {
-        if(is_string($data)) {
-            if ($this->getRegex() && $data !== '') {
+        if (is_string($data)) {
+            if (!$omitMandatoryCheck && $this->getRegex() && $data !== '') {
                 $throwException = false;
                 if (in_array('g', $this->getRegexFlags())) {
                     $flags = str_replace('g', '', implode('', $this->getRegexFlags()));
@@ -247,6 +250,9 @@ class Input extends Data implements
         return $this->defaultValue;
     }
 
+    /**
+     * @return $this
+     */
     public function setDefaultValue(string $defaultValue): static
     {
         if ($defaultValue !== '') {
