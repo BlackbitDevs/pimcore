@@ -525,9 +525,10 @@ class Service extends Model\Element\Service
 
         return self::useInheritedValues(true, static function () use ($object, $config) {
             $labeledValue = $config->getLabeledValue($object);
-            if (!$labeledValue || !isset($labeledValue->value)) {
+            if (!isset($labeledValue->value)) {
                 return null;
             }
+
             $result = $labeledValue->value;
             if (!empty($config->getRenderer())) {
                 $classname = 'Pimcore\\Model\\DataObject\\ClassDefinition\\Data\\' . ucfirst($config->getRenderer());
